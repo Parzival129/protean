@@ -1,0 +1,18 @@
+// physical pin constraints for the Tang Nano 20K.
+// Only the clock and LED0 are mapped. Grows as real I/O is added
+
+// 27 MHz onboard oscillator
+IO_LOC  "clk" 4;
+IO_PORT "clk" IO_TYPE=LVCMOS33 PULL_MODE=UP;
+
+// Onboard LED0 (active-low)
+IO_LOC  "led" 15;
+IO_PORT "led" IO_TYPE=LVCMOS33 DRIVE=8;
+
+// Onboard LED1 (active-low)
+IO_LOC  "led2" 16;
+IO_PORT "led2" IO_TYPE=LVCMOS33 DRIVE=8;
+
+// Wire recfg_n for reflashing (active-low)
+IO_LOC "recfg_n" 9;
+IO_PORT "recfg_n" IO_TYPE=LVCMOS33 DRIVE=8;

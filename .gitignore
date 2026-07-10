@@ -1,0 +1,31 @@
+# --- Docs (intentionally untracked for now) ---
+docs/
+
+# --- Local scratch / third-party test projects (never pushed) ---
+sandbox/
+
+# --- FPGA build artifacts ---
+build/
+*.json          # yosys netlist + nextpnr placed netlist (protean.json, *_pnr.json)
+*.fs            # gowin_pack bitstream
+*.fs.json       # gowin_pack sidecar metadata
+
+# --- Verilator / simulation ---
+obj_dir/
+*.vcd           # waveform dumps
+*.fst
+*.gtkw          # gtkwave save files (drop this line to track curated views)
+
+# --- Python (tools / scripts) ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.ipynb_checkpoints/
+
+# --- Editor / OS ---
+.vscode/
+.idea/
+*.swp
+.DS_Store
