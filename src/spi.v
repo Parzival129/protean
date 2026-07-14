@@ -42,7 +42,7 @@ always @(posedge clk) begin // clock divider
         led <= ~led; // just for testing
         sclk <= ~sclk; // takes effect at end of always block (non blocking)
         
-        if (sclk == 1) begin // shifts out the tx to mosi every falling edge by most significant bit at a time.
+        if (sclk == 1) begin // shifts out each bit of tx to mosi every falling edge by most significant bit at a time.
             tx_shift <= {tx_shift[6:0], 1'b0}; // sclk is checked to be 1 because sclk toggle hasn't taken effect yet.
         end
         if (sclk == 0) begin // shifts data to rx from miso, recieving it bit by bit

@@ -13,7 +13,8 @@ PNR   := $(BUILD)/protean_pnr.json
 FS    := $(BUILD)/protean.fs
 
 .PHONY: all load flash detect clean \
-        blinkA blinkB flash-blinkA flash-blinkB flash-stageB reconfig
+        blinkA blinkB flash-blinkA flash-blinkB flash-stageB reconfig \
+        readid
 
 all: $(FS)
 
@@ -45,6 +46,19 @@ flash: $(FS)         ## onboard flash, persistent — survives reboot
 
 clean:
 	rm -rf $(BUILD)
+
+# ---------------------------------------------------------------------------
+# Flash JEDEC-ID reader — proves the fabric can talk to the SPI flash.
+# Top is spi_controller (not top); uses src/flash_id.cst; packs the MSPI
+# pins (59-62) as GPIO so the fabric can drive them. Loads to SRAM (volatile).
+# Expected result: LEDs 0,1,3 lit = 0x0B (the flash's JEDEC manufacturer byte).
+# ---------------------------------------------------------------------------
+readid: | $(BUILD)
+	yosys -p "read_verilog $(SRC); synth_gowin -top spi_controller -json $(BUILD)/readid.json"
+	nextpnr-himbaechel --json $(BUILD)/readid.json --write $(BUILD)/readid_pnr.json \
+	    --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=src/flash_id.cst
+	gowin_pack -d $(FAMILY) --mspi_as_gpio -o $(BUILD)/readid.fs $(BUILD)/readid_pnr.json
+	openFPGALoader -b $(BOARD) $(BUILD)/readid.fs
 
 # ---------------------------------------------------------------------------
 # Phase 1 — the reconfiguration spike (TODO.md Phase 1, THE linchpin).
