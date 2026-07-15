@@ -6,7 +6,8 @@ sandbox/
 
 # --- FPGA build artifacts ---
 build/
-abc.history     # yosys/ABC drops this in CWD on every synth run
+# yosys/ABC drops this in CWD on every synth run
+abc.history
 *.json          # yosys netlist + nextpnr placed netlist (protean.json, *_pnr.json)
 *.fs            # gowin_pack bitstream
 *.fs.json       # gowin_pack sidecar metadata
