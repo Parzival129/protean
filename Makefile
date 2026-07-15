@@ -14,7 +14,7 @@ FS    := $(BUILD)/protean.fs
 
 .PHONY: all load flash detect clean \
         blinkA blinkB flash-blinkA flash-blinkB flash-stageB reconfig \
-        readid
+        readid flashread flashstatus
 
 all: $(FS)
 
@@ -59,6 +59,23 @@ readid: | $(BUILD)
 	    --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=src/flash_id.cst
 	gowin_pack -d $(FAMILY) --mspi_as_gpio -o $(BUILD)/readid.fs $(BUILD)/readid_pnr.json
 	openFPGALoader -b $(BOARD) $(BUILD)/readid.fs
+
+# Flash READ-DATA (0x03) reader — reads one byte from a flash address, shows it
+# on the LEDs. Same pin setup as readid. Loads to SRAM (volatile).
+flashread: | $(BUILD)
+	yosys -p "read_verilog $(SRC); synth_gowin -top flash_read -json $(BUILD)/flashread.json"
+	nextpnr-himbaechel --json $(BUILD)/flashread.json --write $(BUILD)/flashread_pnr.json \
+	    --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=src/flash_id.cst
+	gowin_pack -d $(FAMILY) --mspi_as_gpio -o $(BUILD)/flashread.fs $(BUILD)/flashread_pnr.json
+	openFPGALoader -b $(BOARD) $(BUILD)/flashread.fs
+
+# Flash Status Register (0x05) read — WIP-poll primitive for the write path.
+flashstatus: | $(BUILD)
+	yosys -p "read_verilog $(SRC); synth_gowin -top flash_status -json $(BUILD)/flashstatus.json"
+	nextpnr-himbaechel --json $(BUILD)/flashstatus.json --write $(BUILD)/flashstatus_pnr.json \
+	    --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=src/flash_id.cst
+	gowin_pack -d $(FAMILY) --mspi_as_gpio -o $(BUILD)/flashstatus.fs $(BUILD)/flashstatus_pnr.json
+	openFPGALoader -b $(BOARD) $(BUILD)/flashstatus.fs
 
 # ---------------------------------------------------------------------------
 # Phase 1 — the reconfiguration spike (TODO.md Phase 1, THE linchpin).
