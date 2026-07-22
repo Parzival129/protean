@@ -25,8 +25,8 @@ module flash_status( // check the polling primitive
     );
 
     localparam IDLE = 3'd0, // step up FSM states
-                CMD_KICK = 3'd1,
-                CMD_WAIT = 3'd2,
+                WRT_KICK = 3'd1,
+                WRT_WAIT = 3'd2,
                 READ_KICK = 3'd3,
                 READ_WAIT = 3'd4,
                 SEND_KICK = 3'd5,
@@ -46,10 +46,24 @@ module flash_status( // check the polling primitive
             IDLE: begin
                 // cs high; when you decide to go, drop cs and head to CMD_KICK
                 cs <= 1'd0;
-                state <= SEND_KICK;
+                state <= WRT_KICK;
+            end
+
+            WRT_KICK: begin
+                tx <= 8'h06; // write enable command to see something for status
+                start <= 1'b1;
+                state <= WRT_WAIT;
+            end
+
+            WRT_WAIT: begin
+                if (done) begin
+                    state <= SEND_KICK;
+                    cs <= 1'd1;
+                end 
             end
 
             SEND_KICK: begin
+                cs <= 1'd0;
                 tx <= 8'h05;
                 start <= 1'b1;
                 state <= SEND_WAIT;
@@ -75,7 +89,7 @@ module flash_status( // check the polling primitive
             end
             DONE: begin
                 cs <= 1'd1;
-                led <= ~id0[5:0];
+                led <= ~id0[5:0]; // ONLY LED1 should be lit -> that is the write enable bit which was enabled at the start
                 // cs high; sit here
             end
         endcase

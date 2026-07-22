@@ -14,7 +14,7 @@ FS    := $(BUILD)/protean.fs
 
 .PHONY: all load flash detect clean \
         blinkA blinkB flash-blinkA flash-blinkB flash-stageB reconfig \
-        readid flashread flashstatus
+        readid flashread flashstatus flasherase
 
 all: $(FS)
 
@@ -76,6 +76,16 @@ flashstatus: | $(BUILD)
 	    --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=src/flash_id.cst
 	gowin_pack -d $(FAMILY) --mspi_as_gpio -o $(BUILD)/flashstatus.fs $(BUILD)/flashstatus_pnr.json
 	openFPGALoader -b $(BOARD) $(BUILD)/flashstatus.fs
+
+# Flash SECTOR ERASE (0x20) — the first write. WREN -> erase 4KB sector at
+# 0x200000 (scratch, NOT boot) -> poll status WIP until clear -> read the byte
+# back (0x03). Expected result: all 6 LEDs lit = 0xFF (a freshly erased byte).
+flasherase: | $(BUILD)
+	yosys -p "read_verilog $(SRC); synth_gowin -top flash_erase -json $(BUILD)/flasherase.json"
+	nextpnr-himbaechel --json $(BUILD)/flasherase.json --write $(BUILD)/flasherase_pnr.json \
+	    --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=src/flash_id.cst
+	gowin_pack -d $(FAMILY) --mspi_as_gpio -o $(BUILD)/flasherase.fs $(BUILD)/flasherase_pnr.json
+	openFPGALoader -b $(BOARD) $(BUILD)/flasherase.fs
 
 # ---------------------------------------------------------------------------
 # Phase 1 — the reconfiguration spike (TODO.md Phase 1, THE linchpin).
