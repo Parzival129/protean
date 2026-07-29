@@ -1,5 +1,6 @@
 module spi #(
-    parameter integer N = 13500000 // oscillate every 0.5 seconds on the 27Mhz clock
+    //parameter integer N = 13500000 // oscillate every 0.5 seconds on the 27Mhz clock
+    parameter integer N = 27 // for much more barable wait times
 ) (
     input wire clk,
     input wire start,

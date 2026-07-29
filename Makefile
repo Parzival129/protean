@@ -14,7 +14,7 @@ FS    := $(BUILD)/protean.fs
 
 .PHONY: all load flash detect clean \
         blinkA blinkB flash-blinkA flash-blinkB flash-stageB reconfig \
-        readid flashread flashstatus flasherase
+        readid flashread flashstatus flasherase flashwrite
 
 all: $(FS)
 
@@ -86,6 +86,17 @@ flasherase: | $(BUILD)
 	    --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=src/flash_id.cst
 	gowin_pack -d $(FAMILY) --mspi_as_gpio -o $(BUILD)/flasherase.fs $(BUILD)/flasherase_pnr.json
 	openFPGALoader -b $(BOARD) $(BUILD)/flasherase.fs
+
+# Flash PAGE PROGRAM (0x02) — writes a data byte (0xA5) to 0x200000, the other
+# half of the writer. WREN -> program 0x02+addr+data -> poll WIP -> read back
+# (0x03). Run `make flasherase` first (program only flips 1->0; target must be
+# erased). Expected result: LEDs 0,2,5 lit = 0xA5 read back.
+flashwrite: | $(BUILD)
+	yosys -p "read_verilog $(SRC); synth_gowin -top flash_write -json $(BUILD)/flashwrite.json"
+	nextpnr-himbaechel --json $(BUILD)/flashwrite.json --write $(BUILD)/flashwrite_pnr.json \
+	    --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=src/flash_id.cst
+	gowin_pack -d $(FAMILY) --mspi_as_gpio -o $(BUILD)/flashwrite.fs $(BUILD)/flashwrite_pnr.json
+	openFPGALoader -b $(BOARD) $(BUILD)/flashwrite.fs
 
 # ---------------------------------------------------------------------------
 # Phase 1 — the reconfiguration spike (TODO.md Phase 1, THE linchpin).
