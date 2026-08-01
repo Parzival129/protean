@@ -14,7 +14,7 @@ FS    := $(BUILD)/protean.fs
 
 .PHONY: all load flash detect clean \
         blinkA blinkB flash-blinkA flash-blinkB flash-stageB reconfig \
-        readid flashread flashstatus flasherase flashwrite
+        readid flashread flashstatus flasherase flashwrite flashcopy flashbufread flashcopypage flashfullcopy
 
 all: $(FS)
 
@@ -97,6 +97,56 @@ flashwrite: | $(BUILD)
 	    --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=src/flash_id.cst
 	gowin_pack -d $(FAMILY) --mspi_as_gpio -o $(BUILD)/flashwrite.fs $(BUILD)/flashwrite_pnr.json
 	openFPGALoader -b $(BOARD) $(BUILD)/flashwrite.fs
+
+# Flash MULTI-BYTE program — writes a 4-byte pattern (A5 3C 18 24) to 0x200000
+# in ONE Page Program command, then verifies the 4th byte at 0x200003 reads 0x24.
+# Proves the multi-byte write engine for the bitstream copier. Run `make flasherase`
+# first. Expected result: LEDs 2,5 lit = 0x24 read back.
+flashcopy: | $(BUILD)
+	yosys -p "read_verilog $(SRC); synth_gowin -top flash_copy -json $(BUILD)/flashcopy.json"
+	nextpnr-himbaechel --json $(BUILD)/flashcopy.json --write $(BUILD)/flashcopy_pnr.json \
+	    --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=src/flash_id.cst
+	gowin_pack -d $(FAMILY) --mspi_as_gpio -o $(BUILD)/flashcopy.fs $(BUILD)/flashcopy_pnr.json
+	openFPGALoader -b $(BOARD) $(BUILD)/flashcopy.fs
+
+# Flash BUFFERED STREAMING read — one Read-Data (0x03) command, then keep
+# clocking dummy bytes in the SAME CS-low frame; the flash auto-increments the
+# address, so 4 dummies stream {A5,3C,18,24} from 0x200000 into buf[0..3].
+# Displays buf[3]. Run `make flasherase && make flashcopy` first to lay the
+# pattern (do NOT erase again before this). Expected result: LEDs 2,5 = 0x24.
+flashbufread: | $(BUILD)
+	yosys -p "read_verilog $(SRC); synth_gowin -top flash_bufread -json $(BUILD)/flashbufread.json"
+	nextpnr-himbaechel --json $(BUILD)/flashbufread.json --write $(BUILD)/flashbufread_pnr.json \
+	    --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=src/flash_id.cst
+	gowin_pack -d $(FAMILY) --mspi_as_gpio -o $(BUILD)/flashbufread.fs $(BUILD)/flashbufread_pnr.json
+	openFPGALoader -b $(BOARD) $(BUILD)/flashbufread.fs
+
+# Flash SINGLE-PAGE COPY — read a block from a source addr into a fabric buffer,
+# then page-program that buffer to a DIFFERENT dest addr, then verify. First time
+# real data moves A->B through rbuf[] instead of being hard-coded. Source 0x200000,
+# dest 0x200800 (same erased sector, different page), verify dest+3 = 0x200803.
+# Run `make flasherase && make flashcopy` first. Expected result: LEDs 2,5 = 0x24.
+flashcopypage: | $(BUILD)
+	yosys -p "read_verilog $(SRC); synth_gowin -top flash_copy_page -json $(BUILD)/flashcopypage.json"
+	nextpnr-himbaechel --json $(BUILD)/flashcopypage.json --write $(BUILD)/flashcopypage_pnr.json \
+	    --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=src/flash_id.cst
+	gowin_pack -d $(FAMILY) --mspi_as_gpio -o $(BUILD)/flashcopypage.fs $(BUILD)/flashcopypage_pnr.json
+	openFPGALoader -b $(BOARD) $(BUILD)/flashcopypage.fs
+
+# Flash FULL-SCALE block copier (scratch->scratch, NO brick risk) — erase dest
+# region (64KB block erase 0xD8), copy source->dest 256 bytes/page in a loop, then
+# streaming-read the whole dest back and compare a running checksum. src 0x200000,
+# dest 0x300000. Length is a parameter (bytes); override for the real bitstream:
+#   make flashfullcopy COPY_LEN=550000
+# Run `make flasherase && make flashcopy` first to put data at the source.
+# Expected result: LEDs 0,2,4 lit = checksum OK (LEDs 1,3,5 = mismatch/FAIL).
+COPY_LEN ?= 4096
+flashfullcopy: | $(BUILD)
+	yosys -p "read_verilog $(SRC); chparam -set COPY_LEN $(COPY_LEN) flash_full_copy; synth_gowin -top flash_full_copy -json $(BUILD)/flashfullcopy.json"
+	nextpnr-himbaechel --json $(BUILD)/flashfullcopy.json --write $(BUILD)/flashfullcopy_pnr.json \
+	    --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=src/flash_id.cst
+	gowin_pack -d $(FAMILY) --mspi_as_gpio -o $(BUILD)/flashfullcopy.fs $(BUILD)/flashfullcopy_pnr.json
+	openFPGALoader -b $(BOARD) $(BUILD)/flashfullcopy.fs
 
 # ---------------------------------------------------------------------------
 # Phase 1 — the reconfiguration spike (TODO.md Phase 1, THE linchpin).

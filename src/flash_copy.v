@@ -1,10 +1,4 @@
-// 1. WREN armed the chip (WEL latched on a CS edge)
-// 2. Erase blanked the sector to 0xFF
-// 3. Program flipped specific bits 1→0 to lay down your byte
-// 4. WIP poll waited for the chip's own internal timing to finish
-// 5. Verify read confirmed the stored value matches what you sent
-
-module flash_write(
+module flash_copy(
     input wire clk,
     output reg cs = 1'b1, // chip select
     output wire sclk,  // form the byte engine
@@ -49,7 +43,8 @@ module flash_write(
     reg [3:0] state = IDLE;
     reg [2:0] counter = 3'd0; // to count which byte to send at a time
     reg [7:0] id0, id1, id2;
-    reg [23:0] addr = 24'h200000; // 24 bit address to read from => first address of the flash
+    reg [23:0] addr = 24'h200000; // 24 bit address to write to
+    reg [23:0] vaddr = 24'h200003; // 24 bit address to read from 
 
     always @(posedge clk) begin
         start <= 1'b0;              // default: only the KICK states override it
@@ -82,17 +77,20 @@ module flash_write(
                     3'd2: tx <= addr[15:8];
                     3'd3: tx <= addr[7:0];
                     3'd4: tx <= 8'hA5; // data to write
+                    3'd5: tx <= 8'h3C;
+                    3'd6: tx <= 8'h18;
+                    3'd7: tx <= 8'h24;
                 endcase
                 start <= 1'b1;
                 state <= SEND_WAIT;
             end
 
             SEND_WAIT: begin
-                if (done && counter < 3'd4) begin
+                if (done && counter < 3'd7) begin
                     counter <= counter + 1'd1;
                     state <= SEND_KICK;
                 end
-                if (done && counter == 3'd4) begin
+                if (done && counter == 3'd7) begin
                     counter <= 1'd0;
                     state <= POLL_KICK;
                     cs <= 1'b1;
@@ -133,9 +131,9 @@ module flash_write(
                 cs <= 1'b0;
                 case (counter)
                     2'd0: tx <= 8'h03;
-                    2'd1: tx <= addr[23:16];
-                    2'd2: tx <= addr[15:8];
-                    2'd3: tx <= addr[7:0];
+                    2'd1: tx <= vaddr[23:16];
+                    2'd2: tx <= vaddr[15:8];
+                    2'd3: tx <= vaddr[7:0];
                 endcase
                 start <= 1'b1;
                 state <= VER_WAIT;
