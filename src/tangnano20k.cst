@@ -16,3 +16,8 @@ IO_PORT "led2" IO_TYPE=LVCMOS33 DRIVE=8;
 // Wire recfg_n for reflashing (active-low)
 IO_LOC "recfg_n" 9;
 IO_PORT "recfg_n" IO_TYPE=LVCMOS33 DRIVE=8;
+
+
+// Button
+IO_LOC "btn" 88;
+IO_PORT "btn" IO_TYPE=LVCMOS33 PULL_MODE=UP;
