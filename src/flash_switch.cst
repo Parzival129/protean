@@ -2,10 +2,13 @@
 IO_LOC  "clk" 4;
 IO_PORT "clk" IO_TYPE=LVCMOS33 PULL_MODE=UP;
 
-// trigger button (pin 87, proven in the sandbox HDMI demo):
-// PULL_MODE=DOWN -> idles LOW (reads 0), reads HIGH (1) only while pressed
+// btn  = GO / commit (pin 87, proven). PULL_MODE=DOWN -> idle 0, pressed 1.
 IO_LOC  "btn" 87;
 IO_PORT "btn" IO_TYPE=LVCMOS33 PULL_MODE=DOWN SINGLE_RESISTOR=ON BANK_VCCIO=3.3;
+
+// btn2 = SELECT / cycle slot (pin 88). Same DOWN pull -> idle 0, pressed 1.
+IO_LOC  "btn2" 88;
+IO_PORT "btn2" IO_TYPE=LVCMOS33 PULL_MODE=DOWN SINGLE_RESISTOR=ON BANK_VCCIO=3.3;
 
 // RECONFIG_N — dedicated pin 9, pulse low to reload from flash addr 0.
 // MUST pack WITHOUT --reconfign_as_gpio or this pin stops triggering.

@@ -13,7 +13,7 @@ PNR   := $(BUILD)/protean_pnr.json
 FS    := $(BUILD)/protean.fs
 
 .PHONY: all load flash detect clean \
-        blinkA blinkB flash-blinkA flash-blinkB flash-stageB reconfig \
+        blinkA blinkB flash-blinkA flash-blinkB stage-slot0 stage-slot1 reconfig \
         flashswitch
 
 all: $(FS)
@@ -56,7 +56,7 @@ COPY_LEN ?= 4096
 # Packed WITHOUT --reconfign_as_gpio (keeps pin 9 as the trigger) and WITH
 # --mspi_as_gpio (drives the flash). Loads to SRAM (volatile) for iterating.
 # MUST override COPY_LEN to the real bitstream size, e.g.:
-#   make flash-stageB                        # put blinkB at 0x200000
+#   make stage-slot0                         # put blinkB at 0x200000
 #   make flashswitch COPY_LEN=600000         # load the switcher; press button to switch
 # RECOVERY if boot ends up bad: `make flash-blinkA` reflashes boot over JTAG.
 flashswitch: | $(BUILD)
@@ -83,8 +83,10 @@ blinkA blinkB: | $(BUILD)
 # --- Flash slot map (8 MB onboard flash; 1 MB slots) --------------------------
 # 0x000000  BOOT / active slot  — what the FPGA loads on power-up & on RECONFIG_N
 # 0x100000  GOLDEN recovery     — immutable known-good (blinkA)  [reserved]
-# 0x200000  blinkB staging      — self-switch copies this -> boot, then RECONFIG_N
-STAGE_OFF := 0x200000
+# 0x200000  persona SLOT 0       — blinkB (fast); self-switch copies a slot -> boot
+# 0x400000  persona SLOT 1       — blinkA (slow)
+STAGE_OFF  := 0x200000
+SLOT1_OFF  := 0x400000
 #
 # SAFETY: this JTAG cable (BL616) reflashes the boot region independently of the
 # loaded bitstream, so an addr-0 write can ALWAYS be recovered — `make flash-blinkA`
@@ -96,6 +98,9 @@ flash-blinkA: blinkA         ## flash slow blinkA to BOOT (addr 0) — power-cyc
 flash-blinkB: blinkB         ## flash fast blinkB to BOOT (addr 0) — for the manual RECONFIG_N reload proof
 	openFPGALoader -b $(BOARD) -f $(BUILD)/blinkB.fs
 
-flash-stageB: blinkB         ## pre-stage blinkB at 0x200000 (NOT boot) for the self-switch step
+stage-slot0: blinkB          ## stage blinkB (fast) into persona SLOT 0 (0x200000)
 	@echo "NOTE: offset write — verify openFPGALoader flags on this board before trusting for self-switch."
 	openFPGALoader -b $(BOARD) -f --external-flash -o $(STAGE_OFF) $(BUILD)/blinkB.fs
+
+stage-slot1: blinkA          ## stage blinkA (slow) into persona SLOT 1 (0x400000)
+	openFPGALoader -b $(BOARD) -f --external-flash -o $(SLOT1_OFF) $(BUILD)/blinkA.fs

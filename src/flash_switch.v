@@ -1,6 +1,7 @@
 module flash_switch(
     input wire clk,
     input wire btn, // to kick off fabric switch
+    input wire btn2, // to cycle fabric slot
     output reg cs = 1'b1, // chip select
     output wire sclk,  // form the byte engine
     output wire mosi, // from byte engine
@@ -79,6 +80,9 @@ module flash_switch(
 
     reg [24:0] blinker = 0;
 
+    reg slot = 1'b0; // which flash slot to boot from
+    reg btn2_prev = 1'b0; // btn2 edge detection
+
     always @(posedge clk) begin
         start <= 1'b0;              // default: only the KICK states override it
 
@@ -88,22 +92,14 @@ module flash_switch(
                 eaddr <= 24'h000000;
                 blk <= 8'd0;
                 counter <= 2'd0;
-
-                led <= ~{5'b0, blinker[24]};
                 blinker <= blinker + 1;
+
+
+                btn2_prev <= btn2; // remember
+                if (btn2 == 1 && btn2_prev == 0) slot <= ~slot; // if rising slot, flip
+                led <= ~{slot, 4'b0, blinker[24]}; // LED5 is selected slot
                 if (btn == 1) state <= E_WREN_KICK;
             end
-
-            // IDLE: begin
-            //     cs <= 1'b0;
-            //     eaddr <= 24'h300000;
-            //     blk <= 8'd0;
-            //     counter <= 2'd0;
-
-            //     led <= ~{5'b0, blinker[24]};
-            //     blinker <= blinker + 1;
-            //     // if (btn == 0) state <= E_WREN_KICK;   // <-- comment this out for the test
-            // end
 
             // erase the dest, one 64k block at a time 
             E_WREN_KICK: begin
@@ -173,7 +169,7 @@ module flash_switch(
                     end else begin
                         // dest is blank, set up the copy loop
                         page <= 16'd0;
-                        saddr <= 24'h200000;
+                        saddr <= slot ? 24'h400000 : 24'h200000; // for picking which slot to source from
                         daddr <= 24'h000000;
                         rsum <= 16'd0;
                         counter <= 2'd0;
