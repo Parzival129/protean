@@ -13,7 +13,7 @@ PNR   := $(BUILD)/protean_pnr.json
 FS    := $(BUILD)/protean.fs
 
 .PHONY: all load flash detect clean \
-        blinkA blinkB flash-blinkA flash-blinkB stage-slot0 stage-slot1 reconfig \
+        blinkA blinkB flash-blinkA flash-blinkB stage-golden stage-slot0 stage-slot1 reconfig \
         flashswitch
 
 all: $(FS)
@@ -85,6 +85,7 @@ blinkA blinkB: | $(BUILD)
 # 0x100000  GOLDEN recovery     — immutable known-good (blinkA)  [reserved]
 # 0x200000  persona SLOT 0       — blinkB (fast); self-switch copies a slot -> boot
 # 0x400000  persona SLOT 1       — blinkA (slow)
+GOLDEN_OFF := 0x100000
 STAGE_OFF  := 0x200000
 SLOT1_OFF  := 0x400000
 #
@@ -97,6 +98,9 @@ flash-blinkA: blinkA         ## flash slow blinkA to BOOT (addr 0) — power-cyc
 
 flash-blinkB: blinkB         ## flash fast blinkB to BOOT (addr 0) — for the manual RECONFIG_N reload proof
 	openFPGALoader -b $(BOARD) -f $(BUILD)/blinkB.fs
+
+stage-golden: blinkA         ## stage blinkA (slow) into the IMMUTABLE GOLDEN slot (0x100000) — the self-heal fallback
+	openFPGALoader -b $(BOARD) -f --external-flash -o $(GOLDEN_OFF) $(BUILD)/blinkA.fs
 
 stage-slot0: blinkB          ## stage blinkB (fast) into persona SLOT 0 (0x200000)
 	@echo "NOTE: offset write — verify openFPGALoader flags on this board before trusting for self-switch."

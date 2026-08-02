@@ -83,6 +83,8 @@ module flash_switch(
     reg slot = 1'b0; // which flash slot to boot from
     reg btn2_prev = 1'b0; // btn2 edge detection
 
+    reg recovering = 1'b0; // tracks wether a persona flash attempt has already occured, 1 -> fell back into backup GOLDEN slot
+
     always @(posedge clk) begin
         start <= 1'b0;              // default: only the KICK states override it
 
@@ -93,6 +95,7 @@ module flash_switch(
                 blk <= 8'd0;
                 counter <= 2'd0;
                 blinker <= blinker + 1;
+                recovering <= 1'b0;
 
 
                 btn2_prev <= btn2; // remember
@@ -169,7 +172,7 @@ module flash_switch(
                     end else begin
                         // dest is blank, set up the copy loop
                         page <= 16'd0;
-                        saddr <= slot ? 24'h400000 : 24'h200000; // for picking which slot to source from
+                        saddr <= recovering ? 24'h100000 : (slot ? 24'h400000 : 24'h200000); // for picking which slot to source from
                         daddr <= 24'h000000;
                         rsum <= 16'd0;
                         counter <= 2'd0;
@@ -362,11 +365,18 @@ module flash_switch(
             DONE: begin
                 cs <= 1'd1;
                 if (rsum == vsum) begin
-                    led <= ~6'b010101; // checksums match! LEDs 0,2,4, data has been copied over successfully!
-                    recfg_n <= 1'b0; // pulse recfg, rebooting the FPGA from the 0x0 boot address
-                    end 
-                    else
-                    led <= ~6'b101010; // mismatch, LEDs 1,3,5
+                    led <= ~6'b010101;      // match — copy good, reload
+                    recfg_n <= 1'b0;
+                end else if (!recovering) begin
+                    // first copy failed — restart erase+copy, this time from GOLDEN backup slot
+                    recovering <= 1'b1;
+                    eaddr <= 24'h000000;
+                    blk <= 8'd0;
+                    counter <= 2'd0;
+                    state <= E_WREN_KICK;
+                end else begin
+                    led <= ~6'b101010;      // GOLDEN backup also failed — give up, do NOT reconfig
+                end
             end
 
         endcase
