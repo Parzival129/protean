@@ -14,7 +14,7 @@ FS    := $(BUILD)/protean.fs
 
 .PHONY: all load flash detect clean \
         blinkA blinkB flash-blinkA flash-blinkB stage-golden stage-slot0 stage-slot1 reconfig \
-        flashswitch
+        flashswitch lcd
 
 all: $(FS)
 
@@ -98,6 +98,17 @@ flash-blinkA: blinkA         ## flash slow blinkA to BOOT (addr 0) — power-cyc
 
 flash-blinkB: blinkB         ## flash fast blinkB to BOOT (addr 0) — for the manual RECONFIG_N reload proof
 	openFPGALoader -b $(BOARD) -f $(BUILD)/blinkB.fs
+
+# ---------------------------------------------------------------------------
+# Phase 2 — the shell. LCD bring-up (480x272 RGB, DE-only) on src/lcd_top.v.
+# Loads to SRAM (volatile) for fast iteration. Pins: src/lcd.cst (verified).
+# ---------------------------------------------------------------------------
+lcd: | $(BUILD)              ## build+load the LCD driver (top=lcd_top) to SRAM
+	yosys -p "read_verilog $(SRC); synth_gowin -top lcd_top -json $(BUILD)/lcd.json"
+	nextpnr-himbaechel --json $(BUILD)/lcd.json --write $(BUILD)/lcd_pnr.json \
+	    --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=src/lcd.cst
+	gowin_pack -d $(FAMILY) -o $(BUILD)/lcd.fs $(BUILD)/lcd_pnr.json
+	openFPGALoader -b $(BOARD) $(BUILD)/lcd.fs
 
 stage-golden: blinkA         ## stage blinkA (slow) into the IMMUTABLE GOLDEN slot (0x100000) — the self-heal fallback
 	openFPGALoader -b $(BOARD) -f --external-flash -o $(GOLDEN_OFF) $(BUILD)/blinkA.fs
