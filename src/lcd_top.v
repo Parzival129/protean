@@ -19,34 +19,29 @@ module lcd_top(
     reg [9:0] vc = 0;
     reg [9:0] hc = 0;
 
-    reg [7:0] glyph [0:15];
-    initial begin // test glyph — 8x8 smiley centered in the 8x16 cell
-        glyph[0]  = 8'b00000000;
-        glyph[1]  = 8'b00000000;
-        glyph[2]  = 8'b00000000;
-        glyph[3]  = 8'b00000000;
-        glyph[4]  = 8'b00111100;   //  ..####..
-        glyph[5]  = 8'b01111110;   //  .######.
-        glyph[6]  = 8'b11011011;   //  ##.##.##  eyes
-        glyph[7]  = 8'b11111111;   //  ########
-        glyph[8]  = 8'b10111101;   //  #.####.#  smile corners
-        glyph[9]  = 8'b11000011;   //  ##....##  smile bottom
-        glyph[10] = 8'b01111110;   //  .######.
-        glyph[11] = 8'b00111100;   //  ..####..
-        glyph[12] = 8'b00000000;
-        glyph[13] = 8'b00000000;
-        glyph[14] = 8'b00000000;
-        glyph[15] = 8'b00000000;
-    end
+    // Font ROM: 96 printable ASCII glyphs (0x20..0x7F), 16 rows each, 8 px wide.
+    reg [7:0] font [0:1535];
+    initial $readmemh("src/font.hex", font);
 
-    wire in_box = (x < 8) && (y < 16);   // is this pixel inside the glyph's box?
-    wire [2:0] cx = x[2:0];              // column within the cell: 0..7
-    wire [3:0] cy = y[3:0];              // row within the cell:    0..15
-    wire [7:0] grow = glyph[cy];         // the 8 dots of this glyph row
-    wire pix_on = grow[7 - cx];          // cx=0 -> leftmost pixel = bit 7
+    // Text to display: one row, "PROTEAN" (each cell holds an ASCII code).
+    reg [7:0] text [0:6];
+    initial begin
+        text[0] = "P"; text[1] = "R"; text[2] = "O"; text[3] = "T";
+        text[4] = "E"; text[5] = "A"; text[6] = "N";
+    end
 
     wire [9:0] x = hc - H_BP;   // column within the visible area: 0..479
     wire [9:0] y = vc - V_BP;   // row within the visible area:    0..271
+
+    wire [6:0] cell_col = x[9:3];                 // which 8-wide column, 0..59
+    wire in_text = (y < 16) && (cell_col < 7);    // row 0, first 7 cells only
+    wire [2:0] cx = x[2:0];                       // column within the cell: 0..7
+    wire [3:0] cy = y[3:0];                       // row within the cell:    0..15
+    wire [7:0] ch = text[cell_col];               // the character in this cell
+
+    wire [10:0] fidx = ((ch - 8'd32) << 4) + cy; // access current character glphy row
+    wire [7:0]  grow = font[fidx];                // the 8 dots of this glyph row
+    wire pix_on = grow[7 - cx];                   // cx=0 -> leftmost pixel = bit 7
 
     wire active = (hc >= H_BP && hc < H_BP+H_ACT) && (vc >= V_BP && vc < V_BP+V_ACT); // in visible range?
 
@@ -66,7 +61,7 @@ module lcd_top(
         if (pix_tick) begin
             lcd_den <= active; // data enable
             if (active) begin
-                if (in_box && pix_on) begin
+                if (in_text && pix_on) begin
                     lcd_r <= 5'h1F;
                     lcd_g <= 6'h3F;
                     lcd_b <= 5'h1F;
