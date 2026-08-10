@@ -4,6 +4,10 @@
 IO_LOC  "clk" 4;
 IO_PORT "clk" IO_TYPE=LVCMOS33 PULL_MODE=UP;
 
+// btn = NEXT / move selection (pin 88). DOWN pull -> idle 0, pressed 1.
+IO_LOC  "btn" 88;
+IO_PORT "btn" IO_TYPE=LVCMOS33 PULL_MODE=DOWN SINGLE_RESISTOR=ON BANK_VCCIO=3.3;
+
 IO_LOC  "lcd_clk" 77;
 IO_PORT "lcd_clk" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;
 IO_LOC  "lcd_den" 48;

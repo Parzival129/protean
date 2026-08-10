@@ -1,5 +1,6 @@
 module lcd_top(
     input wire clk,
+    input wire btn, // to select persona
     output reg lcd_clk,
     output reg lcd_den,
     output reg [4:0] lcd_r,
@@ -14,30 +15,37 @@ module lcd_top(
     localparam V_ACT = 272;
     localparam V_TOT = 297;
 
+    localparam COLS = 16;   // characters per menu row
+    localparam ROWS = 4;    // menu rows
+
     reg pix_tick = 1'd0;
     reg [1:0] ph = 2'd0;
     reg [9:0] vc = 0;
     reg [9:0] hc = 0;
+    reg [1:0] sel = 2'd1; // selection regsiter, which menu item is selected?
+    reg btn_prev = 1'b0;
 
     // Font ROM: 96 printable ASCII glyphs (0x20..0x7F), 16 rows each, 8 px wide.
     reg [7:0] font [0:1535];
     initial $readmemh("src/font.hex", font);
 
-    // Text to display: one row, "PROTEAN" (each cell holds an ASCII code).
-    reg [7:0] text [0:6];
-    initial begin
-        text[0] = "P"; text[1] = "R"; text[2] = "O"; text[3] = "T";
-        text[4] = "E"; text[5] = "A"; text[6] = "N";
-    end
+    // Menu text: ROWS x COLS grid of ASCII codes, flattened row-major.
+    // Space-padded to COLS per row (see src/menu.hex).
+    reg [7:0] text [0:ROWS*COLS-1];
+    initial $readmemh("src/menu.hex", text);
+
+    wire selected = (cell_row == sel);
 
     wire [9:0] x = hc - H_BP;   // column within the visible area: 0..479
     wire [9:0] y = vc - V_BP;   // row within the visible area:    0..271
 
     wire [6:0] cell_col = x[9:3];                 // which 8-wide column, 0..59
-    wire in_text = (y < 16) && (cell_col < 7);    // row 0, first 7 cells only
+    wire [6:0] cell_row = y[9:4];                 // Drop 4 lowest bits to divide by 16
+    wire [11:0] tidx = cell_row * COLS + cell_col; // flatten 2d grid into 1d datastructure
+    wire in_text = (cell_row < ROWS) && (cell_col < COLS);  
     wire [2:0] cx = x[2:0];                       // column within the cell: 0..7
     wire [3:0] cy = y[3:0];                       // row within the cell:    0..15
-    wire [7:0] ch = text[cell_col];               // the character in this cell
+    wire [7:0] ch = text[tidx];               // the character in this cell
 
     wire [10:0] fidx = ((ch - 8'd32) << 4) + cy; // access current character glphy row
     wire [7:0]  grow = font[fidx];                // the 8 dots of this glyph row
@@ -46,6 +54,12 @@ module lcd_top(
     wire active = (hc >= H_BP && hc < H_BP+H_ACT) && (vc >= V_BP && vc < V_BP+V_ACT); // in visible range?
 
     always @(posedge clk) begin
+
+        btn_prev <= btn;
+        if (btn == 1 && btn_prev == 0) begin // edge detect button press
+            if (sel == 2'd3) sel <= 2'd1;
+            else sel <= sel + 2'd1;
+        end
 
         pix_tick <= 1'd0;
         lcd_clk <= (ph == 1);
@@ -61,7 +75,7 @@ module lcd_top(
         if (pix_tick) begin
             lcd_den <= active; // data enable
             if (active) begin
-                if (in_text && pix_on) begin
+                if (in_text && (pix_on ^ selected)) begin // invert the menu item if its selected
                     lcd_r <= 5'h1F;
                     lcd_g <= 6'h3F;
                     lcd_b <= 5'h1F;
