@@ -1,4 +1,4 @@
-module lcd_top(
+module lcd_render(
     input wire clk,
     input wire btn, // to select persona
     output reg lcd_clk,

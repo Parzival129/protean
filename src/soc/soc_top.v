@@ -2,8 +2,14 @@
 // map: 0x0000_0000-0x3FFF ram, 0x1000_0000 led
 
 module soc_top (
-    input  wire       clk,
-    output wire [5:0] led   // active-low
+    input  wire clk,
+    input wire btn,
+    output wire [5:0] led,   // active-low
+    output wire       lcd_clk,
+    output wire       lcd_den,
+    output wire [4:0] lcd_r,
+    output wire [5:0] lcd_g,
+    output wire [4:0] lcd_b
 );
     // power-on reset, hold low for the first 256 cycles
     reg [7:0] rst_cnt = 8'd0;
@@ -26,6 +32,16 @@ module soc_top (
         .mem_valid(mem_valid), .mem_instr(mem_instr), .mem_ready(mem_ready),
         .mem_addr(mem_addr), .mem_wdata(mem_wdata), .mem_wstrb(mem_wstrb), .mem_rdata(mem_rdata),
         .pcpi_wr(1'b0), .pcpi_rd(32'b0), .pcpi_wait(1'b0), .pcpi_ready(1'b0), .irq(32'b0)
+    );
+
+    lcd_render lcd_render (
+        .clk(clk),
+        .btn(btn),
+        .lcd_clk(lcd_clk),
+        .lcd_den(lcd_den),
+        .lcd_r(lcd_r),
+        .lcd_g(lcd_g),
+        .lcd_b(lcd_b)
     );
 
     localparam integer RAM_WORDS = 4096;
