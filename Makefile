@@ -14,7 +14,7 @@ FS    := $(BUILD)/protean.fs
 
 .PHONY: all load flash detect clean \
         blinkA blinkB flash-blinkA flash-blinkB stage-golden stage-slot0 stage-slot1 reconfig \
-        flashswitch lcd
+        flashswitch lcd firmware soc
 
 all: $(FS)
 
@@ -109,6 +109,26 @@ lcd: | $(BUILD)              ## build+load the LCD driver (top=lcd_top) to SRAM
 	    --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=src/lcd.cst
 	gowin_pack -d $(FAMILY) -o $(BUILD)/lcd.fs $(BUILD)/lcd_pnr.json
 	openFPGALoader -b $(BOARD) $(BUILD)/lcd.fs
+
+# ---------------------------------------------------------------------------
+# Shell soft-core: picorv32 SoC (src/soc/). Builds the C firmware, bakes it
+# into on-chip RAM via $readmemh, synths the SoC. Loads to SRAM to iterate.
+# ---------------------------------------------------------------------------
+RVGCC   := riscv64-elf-gcc
+RVCOPY  := riscv64-elf-objcopy
+RVFLAGS := -march=rv32i -mabi=ilp32 -Os -ffreestanding -nostdlib -nostartfiles
+
+firmware: | $(BUILD)         ## compile C firmware -> src/soc/firmware.hex
+	$(RVGCC) $(RVFLAGS) -T firmware/sections.lds firmware/start.S firmware/firmware.c -o $(BUILD)/firmware.elf
+	$(RVCOPY) -O binary $(BUILD)/firmware.elf $(BUILD)/firmware.bin
+	python3 firmware/makehex.py $(BUILD)/firmware.bin > src/soc/firmware.hex
+
+soc: firmware               ## build firmware + picorv32 SoC, load to SRAM
+	yosys -p "read_verilog src/soc/picorv32.v src/soc/soc_top.v; synth_gowin -top soc_top -json $(BUILD)/soc.json"
+	nextpnr-himbaechel --json $(BUILD)/soc.json --write $(BUILD)/soc_pnr.json \
+	    --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=src/soc/soc.cst
+	gowin_pack -d $(FAMILY) -o $(BUILD)/soc.fs $(BUILD)/soc_pnr.json
+	openFPGALoader -b $(BOARD) $(BUILD)/soc.fs
 
 stage-golden: blinkA         ## stage blinkA (slow) into the IMMUTABLE GOLDEN slot (0x100000) — the self-heal fallback
 	openFPGALoader -b $(BOARD) -f --external-flash -o $(GOLDEN_OFF) $(BUILD)/blinkA.fs
