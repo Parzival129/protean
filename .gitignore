@@ -6,6 +6,8 @@ sandbox/
 
 # --- FPGA build artifacts ---
 build/
+# generated every build from firmware/ (baked into RAM at synth via $readmemh)
+src/soc/firmware.hex
 # yosys/ABC drops this in CWD on every synth run
 abc.history
 *.json          # yosys netlist + nextpnr placed netlist (protean.json, *_pnr.json)

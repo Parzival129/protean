@@ -14,7 +14,7 @@ FS    := $(BUILD)/protean.fs
 
 .PHONY: all load flash detect clean \
         blinkA blinkB flash-blinkA flash-blinkB stage-golden stage-slot0 stage-slot1 reconfig \
-        flashswitch lcd firmware soc
+        firmware soc
 
 all: $(FS)
 
@@ -46,25 +46,6 @@ flash: $(FS)         ## onboard flash, persistent — survives reboot
 
 clean:
 	rm -rf $(BUILD)
-
-# COPY_LEN — bytes the self-switch copies; override to the real bitstream size.
-COPY_LEN ?= 4096
-
-# Flash SELF-SWITCH — THE Phase-1 exit gate. Idles with a heartbeat; on a button
-# press copies the staged bitstream (source 0x200000) into BOOT 0x000000, verifies,
-# then pulses RECONFIG_N (pin 9) so the FPGA reloads into the new persona.
-# Packed WITHOUT --reconfign_as_gpio (keeps pin 9 as the trigger) and WITH
-# --mspi_as_gpio (drives the flash). Loads to SRAM (volatile) for iterating.
-# MUST override COPY_LEN to the real bitstream size, e.g.:
-#   make stage-slot0                         # put blinkB at 0x200000
-#   make flashswitch COPY_LEN=600000         # load the switcher; press button to switch
-# RECOVERY if boot ends up bad: `make flash-blinkA` reflashes boot over JTAG.
-flashswitch: | $(BUILD)
-	yosys -p "read_verilog $(SRC); chparam -set COPY_LEN $(COPY_LEN) flash_switch; synth_gowin -top flash_switch -json $(BUILD)/flashswitch.json"
-	nextpnr-himbaechel --json $(BUILD)/flashswitch.json --write $(BUILD)/flashswitch_pnr.json \
-	    --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=src/flash_switch.cst
-	gowin_pack -d $(FAMILY) --mspi_as_gpio -o $(BUILD)/flashswitch.fs $(BUILD)/flashswitch_pnr.json
-	openFPGALoader -b $(BOARD) $(BUILD)/flashswitch.fs
 
 # ---------------------------------------------------------------------------
 # Phase 1 — the reconfiguration spike (TODO.md Phase 1, THE linchpin).
@@ -98,17 +79,6 @@ flash-blinkA: blinkA         ## flash slow blinkA to BOOT (addr 0) — power-cyc
 
 flash-blinkB: blinkB         ## flash fast blinkB to BOOT (addr 0) — for the manual RECONFIG_N reload proof
 	openFPGALoader -b $(BOARD) -f $(BUILD)/blinkB.fs
-
-# ---------------------------------------------------------------------------
-# Phase 2 — the shell. LCD bring-up (480x272 RGB, DE-only) on src/lcd_top.v.
-# Loads to SRAM (volatile) for fast iteration. Pins: src/lcd.cst (verified).
-# ---------------------------------------------------------------------------
-lcd: | $(BUILD)              ## build+load the LCD driver (top=lcd_top) to SRAM
-	yosys -p "read_verilog $(SRC); synth_gowin -top lcd_top -json $(BUILD)/lcd.json"
-	nextpnr-himbaechel --json $(BUILD)/lcd.json --write $(BUILD)/lcd_pnr.json \
-	    --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=src/lcd.cst
-	gowin_pack -d $(FAMILY) -o $(BUILD)/lcd.fs $(BUILD)/lcd_pnr.json
-	openFPGALoader -b $(BOARD) $(BUILD)/lcd.fs
 
 # ---------------------------------------------------------------------------
 # Shell soft-core: picorv32 SoC (src/soc/). Builds the C firmware, bakes it
