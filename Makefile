@@ -5,8 +5,11 @@ DEVICE := GW2AR-LV18QN88C8/I7
 FAMILY := GW2A-18C
 BOARD  := tangnano20k
 
-SRC   := $(wildcard src/*.v)
-CST   := src/tangnano20k.cst
+# blinky persona (generic all/load/flash + blinkA/blinkB build from this)
+SRC   := personas/blinky/top.v
+CST   := personas/blinky/blinky.cst
+# reusable RTL shared across personas
+COMMON := common/picorv32.v common/spi.v common/flash_ctrl.v common/lcd_render.v
 BUILD := build
 JSON  := $(BUILD)/protean.json
 PNR   := $(BUILD)/protean_pnr.json
@@ -49,7 +52,7 @@ clean:
 
 # ---------------------------------------------------------------------------
 # Phase 1 — the reconfiguration spike (TODO.md Phase 1, THE linchpin).
-# Two bitstreams from one RTL (src/top.v), differing only by the BLINK_BIT tap.
+# Two bitstreams from one RTL (personas/blinky/top.v), differing only by the BLINK_BIT tap.
 #   make blinkA  -> build/blinkA.fs  (slow, tap 24 — the golden/known-good)
 #   make blinkB  -> build/blinkB.fs  (fast, tap 22 — the reload target)
 # ---------------------------------------------------------------------------
@@ -81,22 +84,22 @@ flash-blinkB: blinkB         ## flash fast blinkB to BOOT (addr 0) — for the m
 	openFPGALoader -b $(BOARD) -f $(BUILD)/blinkB.fs
 
 # ---------------------------------------------------------------------------
-# Shell soft-core: picorv32 SoC (src/soc/). Builds the C firmware, bakes it
+# Shell soft-core: picorv32 SoC (personas/shell/ + common/). Builds the C firmware, bakes it
 # into on-chip RAM via $readmemh, synths the SoC. Loads to SRAM to iterate.
 # ---------------------------------------------------------------------------
 RVGCC   := riscv64-elf-gcc
 RVCOPY  := riscv64-elf-objcopy
 RVFLAGS := -march=rv32i -mabi=ilp32 -Os -ffreestanding -nostdlib -nostartfiles
 
-firmware: | $(BUILD)         ## compile C firmware -> src/soc/firmware.hex
-	$(RVGCC) $(RVFLAGS) -T firmware/sections.lds firmware/start.S firmware/firmware.c -o $(BUILD)/firmware.elf
+firmware: | $(BUILD)         ## compile C firmware -> personas/shell/firmware.hex
+	$(RVGCC) $(RVFLAGS) -Ifirmware -T firmware/sections.lds firmware/start.S firmware/firmware.c firmware/keyboard.c -o $(BUILD)/firmware.elf
 	$(RVCOPY) -O binary $(BUILD)/firmware.elf $(BUILD)/firmware.bin
-	python3 firmware/makehex.py $(BUILD)/firmware.bin > src/soc/firmware.hex
+	python3 firmware/makehex.py $(BUILD)/firmware.bin > personas/shell/firmware.hex
 
 soc: firmware               ## build firmware + picorv32 SoC, load to SRAM
-	yosys -p "read_verilog src/soc/picorv32.v src/soc/soc_top.v src/soc/lcd_render.v src/soc/flash_ctrl.v src/spi.v; synth_gowin -top soc_top -json $(BUILD)/soc.json"
+	yosys -p "read_verilog $(COMMON) personas/shell/soc_top.v; synth_gowin -top soc_top -json $(BUILD)/soc.json"
 	nextpnr-himbaechel --json $(BUILD)/soc.json --write $(BUILD)/soc_pnr.json \
-	    --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=src/soc/soc.cst
+	    --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=personas/shell/soc.cst
 	gowin_pack -d $(FAMILY) --mspi_as_gpio -o $(BUILD)/soc.fs $(BUILD)/soc_pnr.json
 	openFPGALoader -b $(BOARD) $(BUILD)/soc.fs
 

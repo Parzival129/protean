@@ -28,12 +28,12 @@ module lcd_render(
 
     // Font ROM: 96 printable ASCII glyphs (0x20..0x7F), 16 rows each, 8 px wide.
     reg [7:0] font [0:1535];
-    initial $readmemh("src/font.hex", font);
+    initial $readmemh("common/font.hex", font);
 
     // Menu text: ROWS x COLS grid of ASCII codes, flattened row-major.
-    // Space-padded to COLS per row (see src/menu.hex).
+    // Space-padded to COLS per row (see common/menu.hex).
     reg [7:0] text [0:ROWS*COLS-1];
-    initial $readmemh("src/menu.hex", text);
+    initial $readmemh("common/menu.hex", text);
 
     wire selected = (cell_row == sel);
     // per character render logic!

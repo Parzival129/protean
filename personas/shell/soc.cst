@@ -38,6 +38,14 @@ IO_PORT "miso" IO_TYPE=LVCMOS33 DRIVE=8;
 IO_LOC  "recfg_n" 9;
 IO_PORT "recfg_n" IO_TYPE=LVCMOS33 DRIVE=8;
 
+// CardKB I2C. Pins 71/72 are the genuinely-free GPIO (no onboard component).
+// Earlier pins were secretly wired to onboard parts: 51=PA_EN (amp enable,
+// pulled down -> killed SCL), 54=I2S_DIN, 79=2812_DIN, so I2C never worked.
+IO_LOC  "scl" 71;
+IO_PORT "scl" IO_TYPE=LVCMOS33 PULL_MODE=UP;
+IO_LOC  "sda" 72;
+IO_PORT "sda" IO_TYPE=LVCMOS33 PULL_MODE=UP;
+
 IO_LOC  "lcd_clk" 77;
 IO_PORT "lcd_clk" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;
 IO_LOC  "lcd_den" 48;
@@ -77,3 +85,17 @@ IO_LOC  "lcd_b[1]" 30;
 IO_PORT "lcd_b[1]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;
 IO_LOC  "lcd_b[0]" 31;
 IO_PORT "lcd_b[0]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;
+
+
+// Keyboard wiring
+// ┌────────────┬────────┬─────────────────────────────┐
+// │ Wire color │ Signal │         Connect to          │
+// ├────────────┼────────┼─────────────────────────────┤
+// │ Black      │ GND    │                             │
+// ├────────────┼────────┼─────────────────────────────┤
+// │ Red        │ VCC    │                             │
+// ├────────────┼────────┼─────────────────────────────┤
+// │ White      │ SCL    │            pin 71           │
+// ├────────────┼────────┼─────────────────────────────┤
+// │ Yellow     │ SDA    │            pin 72           │
+// └────────────┴────────┴─────────────────────────────┘

@@ -15,7 +15,9 @@ module soc_top (
     output wire       sclk,
     output wire       mosi,
     input  wire       miso,
-    output wire       recfg_n
+    output wire       recfg_n,
+    inout  wire       scl,     // CardKB I2C (open-drain)
+    inout  wire       sda
 );
     // bitstream size to copy per switch (real persona ~0.6 MB)
     parameter COPY_LEN = 24'd600000;
@@ -60,7 +62,7 @@ module soc_top (
 
     localparam integer RAM_WORDS = 4096;
     reg [31:0] ram [0:RAM_WORDS-1];
-    initial $readmemh("src/soc/firmware.hex", ram); // load the firmware hex file into RAM
+    initial $readmemh("personas/shell/firmware.hex", ram); // load the firmware hex file into RAM
 
     reg [5:0] led_reg = 6'b0;
     assign led = ~led_reg;
@@ -81,6 +83,18 @@ module soc_top (
     end
     wire btn_synced  = btn_sync[1];
     wire btn2_synced = btn2_sync[1];
+
+    // I2C bit-bang lines (open-drain): 1 = release to the pull-up, 0 = drive low.
+    reg scl_hi = 1'b1, sda_hi = 1'b1;
+    assign scl = scl_hi ? 1'bz : 1'b0;
+    assign sda = sda_hi ? 1'bz : 1'b0;
+    reg [1:0] sda_sync = 2'b11, scl_sync = 2'b11;
+    always @(posedge clk) begin
+        sda_sync <= {sda_sync[0], sda};
+        scl_sync <= {scl_sync[0], scl};
+    end
+    wire sda_in = sda_sync[1];
+    wire scl_in = scl_sync[1];
 
     // flash switcher peripheral: write 0x6000_0000 with the slot -> start a
     // switch; read it back for the busy flag.
@@ -134,6 +148,14 @@ module soc_top (
                     flash_start <= 1'b1;
                 end
                 mem_rdata <= {31'b0, flash_busy};
+                mem_ready <= 1'b1;
+            end
+            else if (mem_addr == 32'h7000_0000) begin // i2c: write bit0=SCL bit1=SDA (1=release); read bit0=SDA level
+                if (|mem_wstrb) begin
+                    scl_hi <= mem_wdata[0];
+                    sda_hi <= mem_wdata[1];
+                end
+                mem_rdata <= {30'b0, scl_in, sda_in}; // bit0 SDA, bit1 SCL
                 mem_ready <= 1'b1;
             end
             else begin
