@@ -22,6 +22,22 @@ IO_PORT "led[5]" IO_TYPE=LVCMOS33 DRIVE=8;
 IO_LOC  "btn" 88;
 IO_PORT "btn" IO_TYPE=LVCMOS33 PULL_MODE=DOWN SINGLE_RESISTOR=ON BANK_VCCIO=3.3;
 
+// btn2 = GO / commit the switch (pin 87). same DOWN pull.
+IO_LOC  "btn2" 87;
+IO_PORT "btn2" IO_TYPE=LVCMOS33 PULL_MODE=DOWN SINGLE_RESISTOR=ON BANK_VCCIO=3.3;
+
+// flash SPI (freed with --mspi_as_gpio) + reconfig trigger
+IO_LOC  "cs" 60;
+IO_PORT "cs" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC  "sclk" 59;
+IO_PORT "sclk" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC  "mosi" 61;
+IO_PORT "mosi" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC  "miso" 62;
+IO_PORT "miso" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC  "recfg_n" 9;
+IO_PORT "recfg_n" IO_TYPE=LVCMOS33 DRIVE=8;
+
 IO_LOC  "lcd_clk" 77;
 IO_PORT "lcd_clk" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8;
 IO_LOC  "lcd_den" 48;

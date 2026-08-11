@@ -124,10 +124,10 @@ firmware: | $(BUILD)         ## compile C firmware -> src/soc/firmware.hex
 	python3 firmware/makehex.py $(BUILD)/firmware.bin > src/soc/firmware.hex
 
 soc: firmware               ## build firmware + picorv32 SoC, load to SRAM
-	yosys -p "read_verilog src/soc/picorv32.v src/soc/soc_top.v src/soc/lcd_render.v; synth_gowin -top soc_top -json $(BUILD)/soc.json"
+	yosys -p "read_verilog src/soc/picorv32.v src/soc/soc_top.v src/soc/lcd_render.v src/soc/flash_ctrl.v src/spi.v; synth_gowin -top soc_top -json $(BUILD)/soc.json"
 	nextpnr-himbaechel --json $(BUILD)/soc.json --write $(BUILD)/soc_pnr.json \
 	    --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=src/soc/soc.cst
-	gowin_pack -d $(FAMILY) -o $(BUILD)/soc.fs $(BUILD)/soc_pnr.json
+	gowin_pack -d $(FAMILY) --mspi_as_gpio -o $(BUILD)/soc.fs $(BUILD)/soc_pnr.json
 	openFPGALoader -b $(BOARD) $(BUILD)/soc.fs
 
 stage-golden: blinkA         ## stage blinkA (slow) into the IMMUTABLE GOLDEN slot (0x100000) — the self-heal fallback

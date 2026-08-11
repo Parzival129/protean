@@ -1,6 +1,9 @@
 module lcd_render(
     input wire clk,
-    input wire btn, // to select persona
+    input wire [1:0] sel, // persona selection 
+    input wire text_we, // to allow CPU to write to display
+    input wire [5:0] text_waddr,
+    input wire [7:0] text_wdata,
     output reg lcd_clk,
     output reg lcd_den,
     output reg [4:0] lcd_r,
@@ -22,8 +25,6 @@ module lcd_render(
     reg [1:0] ph = 2'd0;
     reg [9:0] vc = 0;
     reg [9:0] hc = 0;
-    reg [1:0] sel = 2'd1; // selection regsiter, which menu item is selected?
-    reg btn_prev = 1'b0;
 
     // Font ROM: 96 printable ASCII glyphs (0x20..0x7F), 16 rows each, 8 px wide.
     reg [7:0] font [0:1535];
@@ -35,7 +36,7 @@ module lcd_render(
     initial $readmemh("src/menu.hex", text);
 
     wire selected = (cell_row == sel);
-
+    // per character render logic!
     wire [9:0] x = hc - H_BP;   // column within the visible area: 0..479
     wire [9:0] y = vc - V_BP;   // row within the visible area:    0..271
 
@@ -55,11 +56,7 @@ module lcd_render(
 
     always @(posedge clk) begin
 
-        btn_prev <= btn;
-        if (btn == 1 && btn_prev == 0) begin // edge detect button press
-            if (sel == 2'd3) sel <= 2'd1;
-            else sel <= sel + 2'd1;
-        end
+        if (text_we) text[text_waddr] <= text_wdata; // write the character data to the LCD if enabled
 
         pix_tick <= 1'd0;
         lcd_clk <= (ph == 1);
