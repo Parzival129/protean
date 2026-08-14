@@ -1,4 +1,4 @@
-module top #(
+ module top #(
     parameter BLINK_BIT = 24    // default = slow blinkA
 )(
     input  wire clk,   // 27 MHz onboard oscillator (pin 4)

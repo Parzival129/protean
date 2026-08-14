@@ -103,6 +103,17 @@ soc: firmware               ## build firmware + picorv32 SoC, load to SRAM
 	gowin_pack -d $(FAMILY) --mspi_as_gpio -o $(BUILD)/soc.fs $(BUILD)/soc_pnr.json
 	openFPGALoader -b $(BOARD) $(BUILD)/soc.fs
 
+# ---------------------------------------------------------------------------
+# Simulation (iverilog + vvp). Self-checking testbenches under sim/.
+#   make sim-sampler   -> compiles sim/sampler_tb.v + personas/logic_analyzer/sampler.v, runs it
+# One rule for every LA module: sim-<name> pairs sim/<name>_tb.v with the DUT of the same name.
+# ---------------------------------------------------------------------------
+LA := personas/logic_analyzer
+
+sim-%: | $(BUILD)             ## simulate one LA module: make sim-sampler / sim-capture / sim-trigger
+	iverilog -g2012 -o $(BUILD)/$*_tb.vvp sim/$*_tb.v $(LA)/$*.v
+	vvp $(BUILD)/$*_tb.vvp
+
 stage-golden: blinkA         ## stage blinkA (slow) into the IMMUTABLE GOLDEN slot (0x100000) — the self-heal fallback
 	openFPGALoader -b $(BOARD) -f --external-flash -o $(GOLDEN_OFF) $(BUILD)/blinkA.fs
 
