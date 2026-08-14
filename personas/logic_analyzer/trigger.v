@@ -20,6 +20,7 @@ module trigger(
         trig <= 1'd0;
 
         if (arm) begin
+            prev <= cur;
             armed <= 1'd1;
         end
         else if (armed & sample_stb) begin
