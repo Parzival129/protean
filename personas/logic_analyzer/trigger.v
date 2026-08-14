@@ -1,4 +1,4 @@
-// trigger.v — LA step 3: hardware edge trigger.
+// trigger.v —  hardware edge trigger.
 // Watches ONE selected channel of the sample stream. Once `arm`ed, it fires a
 // single-clock `trig` pulse the instant it sees the selected edge, then disarms.
 
@@ -25,7 +25,7 @@ module trigger(
         end
         else if (armed & sample_stb) begin
             prev <= cur;
-            if ((mode == 2'b00 & (~prev & cur)) 
+            if ((mode == 2'b00 & (~prev & cur))  // trigger sample based off sample mode
             || (mode == 2'b01 & (prev & ~cur)) 
             || (mode == 2'b10 & (prev ^ cur))) begin
                 trig <= 1'd1;

@@ -18,7 +18,7 @@ module sampler #(
         synced <= sync1; // to resolve metastabilty 
         sample_stb <= 1'd0;
 
-        if (counter == DIV-1) begin
+        if (counter == DIV-1) begin // base off clock divider
             sample_stb <= 1'd1;
             counter <= 5'd0;
             sample <= synced;

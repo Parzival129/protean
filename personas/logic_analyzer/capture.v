@@ -1,4 +1,4 @@
-// capture.v — LA step 2: capture buffer (fill-once).
+// capture.v —  capture buffer (fill-once).
 
 module capture #(
     parameter DEPTH = 1024,
@@ -18,12 +18,12 @@ module capture #(
     reg [AW-1:0] waddr;
 
     always @(posedge clk) begin
-        if (arm) begin
+        if (arm) begin // begin capturing when armed
             capturing <= 1'b1;
             full      <= 1'b0;
             waddr     <= 0;
         end else if (capturing && sample_stb) begin
-            mem[waddr] <= sample;
+            mem[waddr] <= sample; // place new sample into memory
             waddr      <= waddr + 1'b1;
             if (waddr == DEPTH-1) begin
                 full      <= 1'b1;
