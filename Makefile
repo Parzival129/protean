@@ -110,8 +110,8 @@ soc: firmware               ## build firmware + picorv32 SoC, load to SRAM
 # ---------------------------------------------------------------------------
 LA := personas/logic_analyzer
 
-sim-%: | $(BUILD)             ## simulate one LA module: make sim-sampler / sim-capture / sim-trigger
-	iverilog -g2012 -o $(BUILD)/$*_tb.vvp sim/$*_tb.v $(LA)/$*.v
+sim-%: | $(BUILD)             ## simulate: make sim-sampler / sim-capture / sim-trigger / sim-la_engine
+	iverilog -g2012 -o $(BUILD)/$*_tb.vvp sim/$*_tb.v $(wildcard $(LA)/*.v)
 	vvp $(BUILD)/$*_tb.vvp
 
 stage-golden: blinkA         ## stage blinkA (slow) into the IMMUTABLE GOLDEN slot (0x100000) — the self-heal fallback

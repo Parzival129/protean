@@ -8,8 +8,8 @@ module capture #(
     input  wire [7:0]    sample,
     input  wire          sample_stb,
     input  wire          arm,        // 1-clock pulse: begin a fresh capture
-    output reg           capturing,  // high while recording
-    output reg           full,       // high once DEPTH samples are stored
+    output reg           capturing = 0,  // high while recording
+    output reg           full = 0,       // high once DEPTH samples are stored
     input  wire [AW-1:0] raddr,      // read address (renderer / testbench)
     output wire [7:0]    rdata       // data at raddr
 );
