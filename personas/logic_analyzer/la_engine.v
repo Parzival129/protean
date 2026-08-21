@@ -12,6 +12,7 @@ module la_engine #(
     input  wire [1:0]    mode,       // trigger edge: 00 rising, 01 falling, 10 any
     output wire          capturing,
     output wire          full,
+    output wire          armed,      // high while waiting for the trigger edge
     input  wire [AW-1:0] raddr,      // read the capture back
     output wire [7:0]    rdata
 );
@@ -46,7 +47,7 @@ module la_engine #(
         .sel(sel),
         .mode(mode),
         .trig(arm),
-        .armed()
+        .armed(armed)
     );
 
 endmodule

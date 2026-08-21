@@ -1,11 +1,10 @@
 // la_top.v — Logic Analyzer persona top: beam-races the 480x272 RGB LCD and draws
 // the channel waveforms via wave_pixel.
-//
-// STEP A (first light): feed wave_pixel a FIXED sample word so you can see the 8
-// channel lanes with high/low lines on real hardware — proving the beam timing,
-// lane layout, wave_pixel, and color before the capture engine is wired in.
+
 module la_top(
     input  wire       clk,        // 27 MHz onboard oscillator (pin 4)
+    input  wire       btn1,
+    input  wire       btn2,
     output reg        lcd_clk,
     output reg        lcd_den,
     output reg [4:0]  lcd_r,
@@ -25,15 +24,17 @@ module la_top(
     reg [9:0] vc = 0;
     reg [9:0] hc = 0;
 
-    reg [7:0] counter = 0;
+    reg [7:0] probes = 8'd0;
     reg begun = 0;
 
     wire pix;
     wire [9:0] y = vc - V_BP;
     wire [9:0] x = hc - H_BP;
     wire [7:0] sample_word;
+    wire armed;
 
     reg go = 0;
+    reg btn2_prev = 0;
 
     wave_pixel wave_pixel (
         .y(y),
@@ -43,12 +44,13 @@ module la_top(
 
     la_engine la_engine (
         .clk(clk),
-        .probes(counter),
+        .probes(probes),
         .go(go),
-        .sel(3'd2),
+        .sel(3'd0),
         .mode(2'b00),
         .capturing(),
         .full(),
+        .armed(armed),
         .raddr(x),
         .rdata(sample_word)
     );
@@ -56,12 +58,19 @@ module la_top(
     wire active = (hc >= H_BP && hc < H_BP+H_ACT) && (vc >= V_BP && vc < V_BP+V_ACT); // in visible range?
 
     always @(posedge clk) begin
+        probes[0] <=  btn1;
+        probes[1] <= btn2;
+
         if (begun == 0) begin
             go <= 1;
             begun <= 1;
         end 
+        else if (btn2 == 1 && btn2_prev == 0) begin
+            go <= 1;
+        end
         else go <= 0;
-        counter <= counter + 1;
+        btn2_prev <= btn2;
+
         pix_tick <= 1'd0;
         lcd_clk <= (ph == 1);
 
@@ -76,7 +85,12 @@ module la_top(
         if (pix_tick) begin
             lcd_den <= active; // data enable
             if (active) begin
-                if (pix) begin
+                if (armed && x >= H_ACT-16 && y < 16) begin
+                    lcd_r <= 0;   // green box top-right = armed, waiting for trigger
+                    lcd_g <= 6'h3F;
+                    lcd_b <= 0;
+                end
+                else if (pix) begin
                     lcd_r <= 5'h1F;
                     lcd_g <= 6'h3F;
                     lcd_b <= 5'h1F;

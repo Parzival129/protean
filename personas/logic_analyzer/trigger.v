@@ -24,10 +24,10 @@ module trigger(
             armed <= 1'd1;
         end
         else if (armed & sample_stb) begin
-            prev <= cur;
-            if ((mode == 2'b00 & (~prev & cur))  // trigger sample based off sample mode
-            || (mode == 2'b01 & (prev & ~cur)) 
-            || (mode == 2'b10 & (prev ^ cur))) begin
+            prev <= cur; // trigger sample based off sample mode
+            if ((mode == 2'b00 & (~prev & cur))   // trigger on rising
+            || (mode == 2'b01 & (prev & ~cur))  // trigger on falling
+            || (mode == 2'b10 & (prev ^ cur))) begin // trigger on either edge
                 trig <= 1'd1;
                 armed <= 1'd0;
             end

@@ -17,8 +17,10 @@ module wave_pixel #(
 
     always @(*) begin
         pix = 0;
-        if (chan_bit == 1 & row == HI_ROW) pix = 1;
-        if (chan_bit == 0 & row == LO_ROW) pix = 1;
+        if (channel < NCH) begin
+            if (chan_bit == 1 & row == HI_ROW) pix = 1;
+            if (chan_bit == 0 & row == LO_ROW) pix = 1;
+        end
     end
 
 
