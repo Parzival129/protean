@@ -18,6 +18,7 @@ module la_top(
     localparam V_BP = 5;
     localparam V_ACT = 272;
     localparam V_TOT = 297;
+    localparam ZOOM = 1;
 
     reg pix_tick = 1'd0;
     reg [1:0] ph = 2'd0;
@@ -42,7 +43,7 @@ module la_top(
         .pix(pix)
     );
 
-    la_engine la_engine (
+    la_engine #(.DEPTH(256), .AW(8), .POST(128)) la_engine (
         .clk(clk),
         .probes(probes),
         .go(go),
@@ -51,7 +52,7 @@ module la_top(
         .capturing(),
         .full(),
         .armed(armed),
-        .raddr(x),
+        .raddr(x >> ZOOM),
         .rdata(sample_word)
     );
 

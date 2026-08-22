@@ -10,7 +10,7 @@ module sampler #(
 );
 
     reg [7:0] sync1, synced;
-    reg [5:0] counter = 5'd0;
+    reg [15:0] counter = 5'd0;
     
     always @(posedge clk) begin
         

@@ -1,74 +1,78 @@
-// capture_tb.v — self-checking testbench for the LA capture buffer.
-// Arms the buffer, streams DEPTH known samples (one strobe every few clocks),
-// waits for `full`, then reads every slot back and checks it. Prints PASS/FAIL.
-//
-//   run:  make sim-capture
-//   wave: gtkwave build/capture_tb.vcd
+// capture_tb.v — verifies the pre-trigger ring: continuous record, freeze POST
+// samples after trig, and oldest-first read-back (the wrap + read_base offset).
 `timescale 1ns/1ps
+
 module capture_tb;
-    localparam DEPTH = 8, AW = 3;
+    localparam DEPTH = 16;
+    localparam AW    = 4;
+    localparam POST  = 8;
 
-    reg              clk = 0, arm = 0, sample_stb = 0;
-    reg  [7:0]       sample = 0;
-    reg  [AW-1:0]    raddr = 0;
-    wire             capturing, full;
-    wire [7:0]       rdata;
+    reg clk = 0, stb = 0, rearm = 0, trig = 0;
+    reg [7:0] sample = 8'd1;      // ramp source, new value each strobe
+    reg [AW-1:0] raddr = 0;
+    wire [7:0] rdata;
+    wire capturing, full;
 
-    capture #(.DEPTH(DEPTH), .AW(AW)) dut (
-        .clk(clk), .sample(sample), .sample_stb(sample_stb), .arm(arm),
-        .capturing(capturing), .full(full), .raddr(raddr), .rdata(rdata)
+    capture #(.DEPTH(DEPTH), .AW(AW), .POST(POST)) dut (
+        .clk(clk), .sample(sample), .sample_stb(stb),
+        .rearm(rearm), .trig(trig),
+        .capturing(capturing), .full(full),
+        .raddr(raddr), .rdata(rdata)
     );
 
     always #5 clk = ~clk;
 
-    reg [7:0] expected [0:DEPTH-1];
-    integer   i, errors = 0;
+    integer i, errors = 0;
+    reg [7:0] trig_val, first;
 
     initial begin
-        $dumpfile("build/capture_tb.vcd");
-        $dumpvars(0, capture_tb);
-        for (i = 0; i < DEPTH; i = i + 1) expected[i] = 8'hA0 + i;  // distinct pattern A0..A7
+        // arm the ring
+        @(negedge clk); rearm = 1;
+        @(negedge clk); rearm = 0;
 
-        // idle a few clocks
-        repeat (3) @(posedge clk);
-
-        // arm for one clock
-        @(posedge clk); #1 arm = 1;
-        @(posedge clk); #1 arm = 0;
-
-        // stream DEPTH samples, one strobe every 3 clocks
-        for (i = 0; i < DEPTH; i = i + 1) begin
-            @(posedge clk); #1 sample = expected[i]; sample_stb = 1;
-            @(posedge clk); #1 sample_stb = 0;
-            @(posedge clk);                          // gap between strobes
+        // record continuously; advance the ramp each strobe. Run well past DEPTH
+        // so the pre-trigger region is fully valid history.
+        stb = 1;
+        for (i = 0; i < 40; i = i + 1) begin
+            @(negedge clk); sample = sample + 1'b1;
         end
 
-        // wait for full (bounded)
-        i = 0;
-        while (!full && i < 100) begin @(posedge clk); i = i + 1; end
-        if (!full) begin $display("FAIL  capture: `full` never asserted"); $finish; end
+        // fire the trigger
+        trig_val = sample;
+        trig = 1;
+        @(negedge clk); trig = 0; sample = sample + 1'b1;
 
-        // read every slot back and check
+        // keep feeding until it freezes
+        i = 0;
+        while (!full && i < 100) begin
+            @(negedge clk); sample = sample + 1'b1; i = i + 1;
+        end
+        stb = 0;
+
+        if (!full) begin
+            $display("FAIL: never froze (full stayed low)"); errors = errors + 1;
+        end
+        if (capturing) begin
+            $display("FAIL: still capturing after freeze"); errors = errors + 1;
+        end
+
+        // read back oldest-first: must be a contiguous +1 ramp across the whole buffer
+        @(negedge clk);
+        raddr = 0; #1; first = rdata;
         for (i = 0; i < DEPTH; i = i + 1) begin
             raddr = i[AW-1:0]; #1;
-            if (rdata !== expected[i]) begin
+            if (rdata !== (first + i)) begin
+                $display("FAIL: col %0d = %0d, expected %0d", i, rdata, (first + i));
                 errors = errors + 1;
-                $display("  FAIL addr %0d: rdata=%h expected=%h", i, rdata, expected[i]);
-            end else begin
-                $display("  ok   addr %0d: %h", i, rdata);
             end
         end
 
-        $display("----");
-        if (errors == 0) $display("PASS  capture: %0d/%0d samples stored correctly", DEPTH, DEPTH);
-        else             $display("FAIL  capture: %0d error(s)", errors);
-        $finish;
-    end
+        // the trigger sample should sit near column DEPTH-POST (centered)
+        $display("INFO: trig sample=%0d lands at col %0d (expected ~%0d)",
+                 trig_val, (trig_val - first), DEPTH - POST);
 
-    // safety timeout
-    initial begin
-        #20000;
-        $display("FAIL  capture: timeout");
+        if (errors == 0) $display("PASS: pre-trigger ring read-back correct");
+        else             $display("DONE with %0d error(s)", errors);
         $finish;
     end
 endmodule

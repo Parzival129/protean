@@ -3,6 +3,7 @@
 module la_engine #(
     parameter DEPTH = 1024,
     parameter AW    = 10,
+    parameter POST  = 512,       // post-trigger samples (rest of ring is pre-trigger)
     parameter DIV   = 27
 )(
     input  wire          clk,
@@ -19,20 +20,21 @@ module la_engine #(
 
     wire [7:0] sample;
     wire sample_stb;
-    wire arm;
+    wire trig;                   // trigger.trig -> capture.trig
 
-    sampler #(.DIV(DIV)) sampler (
+    sampler #(.DIV(13500)) sampler (
         .clk(clk),
         .probes(probes),
         .sample(sample),
         .sample_stb(sample_stb)
     );
 
-    capture #(.DEPTH(DEPTH), .AW(AW))capture (
+    capture #(.DEPTH(DEPTH), .AW(AW), .POST(POST))capture (
         .clk(clk),
         .sample(sample),
         .sample_stb(sample_stb),
-        .arm(arm),
+        .rearm(go),
+        .trig(trig),
         .capturing(capturing),
         .full(full),
         .raddr(raddr),
@@ -46,7 +48,7 @@ module la_engine #(
         .arm(go),
         .sel(sel),
         .mode(mode),
-        .trig(arm),
+        .trig(trig),
         .armed(armed)
     );
 
