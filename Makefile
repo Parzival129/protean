@@ -17,7 +17,7 @@ FS    := $(BUILD)/protean.fs
 
 .PHONY: all load flash detect clean \
         blinkA blinkB flash-blinkA flash-blinkB stage-golden stage-slot0 stage-slot1 reconfig \
-        firmware soc la stage-shell
+        firmware soc la stage-shell stage-la
 
 all: $(FS)
 
@@ -133,3 +133,10 @@ stage-slot1: blinkA          ## stage blinkA (slow) into persona SLOT 1 (0x40000
 
 stage-shell: soc             ## stage the shell into persona SLOT 0 (0x200000) — LA escape copies it to boot
 	openFPGALoader -b $(BOARD) -f --external-flash -o $(STAGE_OFF) $(BUILD)/soc.fs
+
+stage-la: | $(BUILD)         ## build LA + stage into persona SLOT 1 (0x400000) — shell menu "LOGIC ANALYZER" -> LA
+	yosys -p "read_verilog common/spi.v common/flash_ctrl.v $(wildcard $(LA)/*.v); synth_gowin -top la_top -json $(BUILD)/la.json"
+	nextpnr-himbaechel --json $(BUILD)/la.json --write $(BUILD)/la_pnr.json \
+	    --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=$(LA)/la.cst
+	gowin_pack -d $(FAMILY) --mspi_as_gpio -o $(BUILD)/la.fs $(BUILD)/la_pnr.json
+	openFPGALoader -b $(BOARD) -f --external-flash -o $(SLOT1_OFF) $(BUILD)/la.fs
