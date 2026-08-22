@@ -17,7 +17,7 @@ FS    := $(BUILD)/protean.fs
 
 .PHONY: all load flash detect clean \
         blinkA blinkB flash-blinkA flash-blinkB stage-golden stage-slot0 stage-slot1 reconfig \
-        firmware soc la
+        firmware soc la stage-shell
 
 all: $(FS)
 
@@ -115,10 +115,10 @@ sim-%: | $(BUILD)             ## simulate: make sim-sampler / sim-capture / sim-
 	vvp $(BUILD)/$*_tb.vvp
 
 la: | $(BUILD)                ## build Logic Analyzer persona (la_top) + load to SRAM
-	yosys -p "read_verilog $(wildcard $(LA)/*.v); synth_gowin -top la_top -json $(BUILD)/la.json"
+	yosys -p "read_verilog common/spi.v common/flash_ctrl.v $(wildcard $(LA)/*.v); synth_gowin -top la_top -json $(BUILD)/la.json"
 	nextpnr-himbaechel --json $(BUILD)/la.json --write $(BUILD)/la_pnr.json \
 	    --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=$(LA)/la.cst
-	gowin_pack -d $(FAMILY) -o $(BUILD)/la.fs $(BUILD)/la_pnr.json
+	gowin_pack -d $(FAMILY) --mspi_as_gpio -o $(BUILD)/la.fs $(BUILD)/la_pnr.json
 	openFPGALoader -b $(BOARD) $(BUILD)/la.fs
 
 stage-golden: blinkA         ## stage blinkA (slow) into the IMMUTABLE GOLDEN slot (0x100000) — the self-heal fallback
@@ -130,3 +130,6 @@ stage-slot0: blinkB          ## stage blinkB (fast) into persona SLOT 0 (0x20000
 
 stage-slot1: blinkA          ## stage blinkA (slow) into persona SLOT 1 (0x400000)
 	openFPGALoader -b $(BOARD) -f --external-flash -o $(SLOT1_OFF) $(BUILD)/blinkA.fs
+
+stage-shell: soc             ## stage the shell into persona SLOT 0 (0x200000) — LA escape copies it to boot
+	openFPGALoader -b $(BOARD) -f --external-flash -o $(STAGE_OFF) $(BUILD)/soc.fs

@@ -4,6 +4,18 @@
 IO_LOC  "clk" 4;
 IO_PORT "clk" IO_TYPE=LVCMOS33 PULL_MODE=UP;
 
+// reconfig trigger + MSPI flash bus (freed by --mspi_as_gpio) for the escape hatch
+IO_LOC  "recfg_n" 9;
+IO_PORT "recfg_n" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC  "cs" 60;
+IO_PORT "cs" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC  "sclk" 59;
+IO_PORT "sclk" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC  "mosi" 61;
+IO_PORT "mosi" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC  "miso" 62;
+IO_PORT "miso" IO_TYPE=LVCMOS33 DRIVE=8;
+
 IO_LOC  "btn1" 88;
 IO_PORT "btn1" IO_TYPE=LVCMOS33 PULL_MODE=DOWN SINGLE_RESISTOR=ON BANK_VCCIO=3.3;
 IO_LOC  "btn2" 87;

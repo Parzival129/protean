@@ -34,7 +34,7 @@ module capture #(
         end
         else if (capturing && sample_stb) begin
             mem[waddr] <= sample; // drop new sample into the ring
-            waddr      <= waddr + 1'd1; // wraps at DEPTH on its own
+            waddr <= waddr + 1'd1; // wraps at DEPTH on its own
             if (triggered) begin
                 if (post_cnt == POST-1) begin // enough post samples, freeze
                     capturing <= 1'd0;

@@ -9,7 +9,12 @@ module la_top(
     output reg        lcd_den,
     output reg [4:0]  lcd_r,
     output reg [5:0]  lcd_g,
-    output reg [4:0]  lcd_b
+    output reg [4:0]  lcd_b,
+    output wire       recfg_n,     // reboot pin, driven by flash_ctrl
+    output wire       cs,          // MSPI flash bus — the persona switcher drives these
+    output wire       sclk,
+    output wire       mosi,
+    input  wire       miso
 );
 
     localparam H_BP  = 30;
@@ -36,6 +41,24 @@ module la_top(
 
     reg go = 0;
     reg btn2_prev = 0;
+    reg [23:0] both_btn_cnt = 0;
+
+    // escape hatch: hold both buttons -> copy the shell back to boot + reconfig
+    reg flash_start = 1'b0;
+    reg switching = 1'b0;
+    wire flash_busy;
+
+    flash_ctrl #(.COPY_LEN(24'd950000)) u_flash (   // shell bitstream is ~907 KB — must cover it fully
+        .clk(clk),
+        .start(flash_start),
+        .slot_in(1'b0),        // shell staged in slot 0 (0x200000)
+        .cs(cs),
+        .sclk(sclk),
+        .mosi(mosi),
+        .miso(miso),
+        .busy(flash_busy),
+        .recfg_n(recfg_n)
+    );
 
     wave_pixel wave_pixel (
         .y(y),
@@ -72,6 +95,16 @@ module la_top(
         else go <= 0;
         btn2_prev <= btn2;
 
+        flash_start <= 1'b0;   // one-cycle kick, set only on the trigger
+        if (btn1 == 1 && btn2 == 1) begin
+            both_btn_cnt <= both_btn_cnt + 1;
+            if (both_btn_cnt == 24'd10000000 && !switching) begin
+                flash_start <= 1'b1;   // copy shell -> boot, verify, reconfig
+                switching   <= 1'b1;
+            end
+        end
+        else both_btn_cnt <= 0;
+
         pix_tick <= 1'd0;
         lcd_clk <= (ph == 1);
 
@@ -86,7 +119,12 @@ module la_top(
         if (pix_tick) begin
             lcd_den <= active; // data enable
             if (active) begin
-                if (armed && x >= H_ACT-16 && y < 16) begin
+                if (flash_busy && x < 16 && y < 16) begin
+                    lcd_r <= 0;   // blue box top-left = switching back to shell
+                    lcd_g <= 0;
+                    lcd_b <= 5'h1F;
+                end
+                else if (armed && x >= H_ACT-16 && y < 16) begin
                     lcd_r <= 0;   // green box top-right = armed, waiting for trigger
                     lcd_g <= 6'h3F;
                     lcd_b <= 0;
