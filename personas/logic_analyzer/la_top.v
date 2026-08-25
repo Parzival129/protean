@@ -25,7 +25,9 @@ module la_top(
     localparam V_BP = 5;
     localparam V_ACT = 272;
     localparam V_TOT = 297;
-    localparam ZOOM = 1;
+
+    reg [1:0] zoom = 1;         // columns per sample = 2**zoom (arrows adjust)
+    reg [8:0] pan_offset = 0;   // scroll position into the 512-deep capture ring
 
     reg pix_tick = 1'd0;
     reg [1:0] ph = 2'd0;
@@ -45,9 +47,8 @@ module la_top(
     reg btn2_prev = 0;
     reg [23:0] both_btn_cnt = 0;
 
-    // CardKB over I2C: poll a few times a sec, a key press re-arms the capture
+    // CardKB over I2C: poll continuously; Enter re-arms, arrows pan/zoom
     reg  i2c_start = 0;
-    reg  [22:0] poll = 0;
     wire i2c_scl_oe, i2c_sda_oe, i2c_busy, key_valid, kbd_acked;
     wire [7:0] key;
 
@@ -90,7 +91,7 @@ module la_top(
         .pix(pix)
     );
 
-    la_engine #(.DEPTH(256), .AW(8), .POST(128)) la_engine (
+    la_engine #(.DEPTH(512), .AW(9), .POST(256)) la_engine (
         .clk(clk),
         .probes(probes),
         .go(go),
@@ -99,7 +100,8 @@ module la_top(
         .capturing(),
         .full(),
         .armed(armed),
-        .raddr(x >> ZOOM),
+        // center the trigger (buffer sample DEPTH-POST=256) on screen; pan scrolls around it
+        .raddr((x >> zoom) + pan_offset + 9'd256 - (240 >> zoom)),
         .rdata(sample_word)
     );
 
@@ -116,18 +118,25 @@ module la_top(
         else if (btn2 == 1 && btn2_prev == 0) begin
             go <= 1;
         end
-        else if (key_valid && kbd_acked && key != 8'd0) begin // acked key re-arms a fresh capture
+        else if (key_valid && kbd_acked && key == 8'h0D) begin // Enter re-arms a fresh capture
             go <= 1;
         end
         else go <= 0;
         btn2_prev <= btn2;
 
-        // poll the keyboard ~10x/sec (kick a read when idle)
+        // arrow keys pan/zoom the view (left/right scroll, up/down zoom)
+        if (key_valid && kbd_acked) begin
+            case (key)
+                8'hB4: pan_offset <= pan_offset - 5'd16; // left (send-once kbd: big step/tap)
+                8'hB7: pan_offset <= pan_offset + 5'd16; // right
+                8'hB5: if (zoom != 2'd3) zoom <= zoom + 1'b1; // up = zoom in
+                8'hB6: if (zoom != 2'd0) zoom <= zoom - 1'b1; // down = zoom out (512 deep -> zoom 0 shows 480)
+            endcase
+        end
+
+        // poll the keyboard continuously — kick a fresh read whenever idle
         i2c_start <= 1'b0;
-        if (poll == 23'd2700000) begin
-            poll <= 0;
-            if (!i2c_busy) i2c_start <= 1'b1;
-        end else poll <= poll + 1'b1;
+        if (!i2c_busy) i2c_start <= 1'b1;
 
         flash_start <= 1'b0;   // one-cycle kick, set only on the trigger
         if (btn1 == 1 && btn2 == 1) begin
