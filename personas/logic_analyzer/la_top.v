@@ -14,7 +14,9 @@ module la_top(
     output wire       cs,          // MSPI flash bus — the persona switcher drives these
     output wire       sclk,
     output wire       mosi,
-    input  wire       miso
+    input  wire       miso,
+    inout  wire       scl,         // CardKB I2C (open-drain, pins 71/72)
+    inout  wire       sda
 );
 
     localparam H_BP  = 30;
@@ -42,6 +44,28 @@ module la_top(
     reg go = 0;
     reg btn2_prev = 0;
     reg [23:0] both_btn_cnt = 0;
+
+    // CardKB over I2C: poll a few times a sec, a key press re-arms the capture
+    reg  i2c_start = 0;
+    reg  [22:0] poll = 0;
+    wire i2c_scl_oe, i2c_sda_oe, i2c_busy, key_valid, kbd_acked;
+    wire [7:0] key;
+
+    i2c_master #(.ADDR(7'h5F), .DIV(4096)) u_kbd ( // Needed to increase DIV to allow for weak internal pullups to raise released lines fast enough
+        .clk(clk),
+        .start(i2c_start),
+        .scl_oe(i2c_scl_oe),
+        .sda_oe(i2c_sda_oe),
+        .sda_in(sda),
+        .key(key),
+        .valid(key_valid),
+        .acked(kbd_acked),
+        .busy(i2c_busy)
+    );
+
+    // open-drain: pull low when oe, else release to the external pull-up
+    assign scl = i2c_scl_oe ? 1'b0 : 1'bz;
+    assign sda = i2c_sda_oe ? 1'b0 : 1'bz;
 
     // escape hatch: hold both buttons -> copy the shell back to boot + reconfig
     reg flash_start = 1'b0;
@@ -88,12 +112,22 @@ module la_top(
         if (begun == 0) begin
             go <= 1;
             begun <= 1;
-        end 
+        end
         else if (btn2 == 1 && btn2_prev == 0) begin
+            go <= 1;
+        end
+        else if (key_valid && kbd_acked && key != 8'd0) begin // acked key re-arms a fresh capture
             go <= 1;
         end
         else go <= 0;
         btn2_prev <= btn2;
+
+        // poll the keyboard ~10x/sec (kick a read when idle)
+        i2c_start <= 1'b0;
+        if (poll == 23'd2700000) begin
+            poll <= 0;
+            if (!i2c_busy) i2c_start <= 1'b1;
+        end else poll <= poll + 1'b1;
 
         flash_start <= 1'b0;   // one-cycle kick, set only on the trigger
         if (btn1 == 1 && btn2 == 1) begin
@@ -123,6 +157,11 @@ module la_top(
                     lcd_r <= 0;   // blue box top-left = switching back to shell
                     lcd_g <= 0;
                     lcd_b <= 5'h1F;
+                end
+                else if (x < 16 && y >= V_ACT-16) begin // diag box bottom-left: kbd ack
+                    lcd_r <= kbd_acked ? 5'h00 : 5'h1F;  // green = acked, red = no answer
+                    lcd_g <= kbd_acked ? 6'h3F : 6'h00;
+                    lcd_b <= 0;
                 end
                 else if (armed && x >= H_ACT-16 && y < 16) begin
                     lcd_r <= 0;   // green box top-right = armed, waiting for trigger

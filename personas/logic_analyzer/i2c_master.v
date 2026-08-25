@@ -14,6 +14,7 @@ module i2c_master #(
     input  wire       sda_in,       // sampled SDA line level
     output reg  [7:0] key,          // last byte read from the slave
     output reg        valid,        // 1-clock pulse: `key` just updated
+    output reg        acked = 0,    // diag: 1 = slave acked its address on the last read
     output wire       busy          // high while a transaction is running
 );
 
@@ -26,7 +27,7 @@ module i2c_master #(
                 STOP  = 4'd7;
 
 
-    reg [5:0] counter = 0;
+    reg [15:0] counter = 0;
     reg [1:0] phase = 0;
     reg [3:0] bit_counter = 0;
     reg tick;
@@ -61,6 +62,7 @@ module i2c_master #(
                 IDLE: begin // bus released high; on pending -> START
                     scl_oe <= 0;
                     sda_oe <= 0;
+                    phase  <= 0;   // park phase so every transaction starts aligned
                     if (pending) begin
                         state <= START;
                         pending <= 0;
@@ -94,7 +96,10 @@ module i2c_master #(
                     if (phase == 2'd0 || phase == 2'd3) begin // clock scl properly based off phase
                         scl_oe <= 1;
                     end else scl_oe <= 0;
-                    if (phase == 2'd2) ackd <= sda_s1;
+                    if (phase == 2'd2) begin
+                        ackd  <= sda_s1;
+                        acked <= ~sda_s1;   // diag: slave pulled sda low = acked
+                    end
                     if (phase == 2'd3) begin
                         state <= DATA;
                         bit_counter <= 0;
