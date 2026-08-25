@@ -22,7 +22,7 @@ module la_engine #(
     wire sample_stb;
     wire trig;                   // trigger.trig -> capture.trig
 
-    sampler #(.DIV(13500)) sampler (
+    sampler #(.DIV(DIV)) sampler (
         .clk(clk),
         .probes(probes),
         .sample(sample),
