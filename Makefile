@@ -157,5 +157,6 @@ gb: | $(BUILD)               ## build Game Boy persona (gb_top) + load to SRAM
 	openFPGALoader -b $(BOARD) $(BUILD)/gb.fs
 
 sim-gb-%: | $(BUILD)         ## simulate a GB module: make sim-gb-<name> pairs sim/<name>_tb.v with the core
-	iverilog -g2012 -o $(BUILD)/$*_tb.vvp sim/$*_tb.v $(wildcard $(GB)/core/*.v) $(wildcard $(GB)/gb_*.v)
+	cp $(GB)/roms/bootrom.mif bootrom.mif
+	iverilog -g2012 -I $(GB)/core -o $(BUILD)/$*_tb.vvp sim/$*_tb.v $(wildcard $(GB)/core/*.v) $(wildcard $(GB)/gb_*.v)
 	vvp $(BUILD)/$*_tb.vvp
