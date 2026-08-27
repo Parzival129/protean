@@ -17,7 +17,7 @@ FS    := $(BUILD)/protean.fs
 
 .PHONY: all load flash detect clean \
         blinkA blinkB flash-blinkA flash-blinkB stage-golden stage-slot0 stage-slot1 reconfig \
-        firmware soc la stage-shell stage-la
+        firmware soc la stage-shell stage-la gb sim-gb
 
 all: $(FS)
 
@@ -140,3 +140,22 @@ stage-la: | $(BUILD)         ## build LA + stage into persona SLOT 1 (0x400000) 
 	    --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=$(LA)/la.cst
 	gowin_pack -d $(FAMILY) --mspi_as_gpio -o $(BUILD)/la.fs $(BUILD)/la_pnr.json
 	openFPGALoader -b $(BOARD) -f --external-flash -o $(SLOT1_OFF) $(BUILD)/la.fs
+
+# ---------------------------------------------------------------------------
+# Game Boy persona — vendored VerilogBoy core (personas/gameboy/core/) wrapped
+# by gb_top + the three integration modules you fill: gb_clock, gb_cart, gb_video.
+# boy.v needs bootrom.mif in the synth CWD, so we copy it in first (gitignored).
+# ---------------------------------------------------------------------------
+GB := personas/gameboy
+
+gb: | $(BUILD)               ## build Game Boy persona (gb_top) + load to SRAM
+	cp $(GB)/roms/bootrom.mif bootrom.mif
+	yosys -p "read_verilog $(wildcard $(GB)/core/*.v) $(GB)/gb_top.v $(GB)/gb_clock.v $(GB)/gb_cart.v $(GB)/gb_video.v; synth_gowin -top gb_top -json $(BUILD)/gb.json"
+	nextpnr-himbaechel --json $(BUILD)/gb.json --write $(BUILD)/gb_pnr.json \
+	    --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=$(GB)/gb.cst
+	gowin_pack -d $(FAMILY) -o $(BUILD)/gb.fs $(BUILD)/gb_pnr.json
+	openFPGALoader -b $(BOARD) $(BUILD)/gb.fs
+
+sim-gb-%: | $(BUILD)         ## simulate a GB module: make sim-gb-<name> pairs sim/<name>_tb.v with the core
+	iverilog -g2012 -o $(BUILD)/$*_tb.vvp sim/$*_tb.v $(wildcard $(GB)/core/*.v) $(wildcard $(GB)/gb_*.v)
+	vvp $(BUILD)/$*_tb.vvp
