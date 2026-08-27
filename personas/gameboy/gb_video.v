@@ -24,16 +24,22 @@ module gb_video(
     reg [7:0] xi = 0, yi = 0;
     reg [1:0] framebuffer [0:23039]; // 160x144, 2bpp
 
+    reg hs_prev, vs_prev;
+
     always @(posedge clk_gb) begin
+
+        vs_prev <= vs;
+        hs_prev <= hs;
+
         if (valid) begin
             framebuffer[yi * 160 + xi] <= pixel;
             xi <= xi + 1;
         end
-        if (hs) begin // new row
+        if (hs && !hs_prev) begin // new row on rising edge
             xi <= 0; 
             yi <= yi + 1; 
         end 
-        if (vs) yi <= 0; // new frame
+        if (vs && !vs_prev) yi <= 0; // new frame on rising edge
     end
 
     // beam-racer ported from common/lcd_render.v
