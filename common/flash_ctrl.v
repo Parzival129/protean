@@ -8,7 +8,7 @@
 module flash_ctrl(
     input  wire clk,
     input  wire start,        // one-cycle kick from the CPU
-    input  wire slot_in,      // 0 -> 0x200000, 1 -> 0x400000
+    input  wire [1:0] slot_in, // 0 -> 0x200000, 1 -> 0x400000, 2 -> 0x600000
     output reg  cs = 1'b1,
     output wire sclk,
     output wire mosi,
@@ -84,7 +84,7 @@ module flash_ctrl(
 
     reg [7:0] rbuf [0:255];     // one page of data on its way across
 
-    reg slot = 1'b0;         // latched from slot_in on start
+    reg [1:0] slot = 2'b0;   // latched from slot_in on start
     reg recovering = 1'b0;   // 1 -> already fell back to the golden slot
 
     assign busy = (state != IDLE);
@@ -173,7 +173,9 @@ module flash_ctrl(
                     end else begin
                         // dest is blank, set up the copy loop
                         page <= 16'd0;
-                        saddr <= recovering ? 24'h100000 : (slot ? 24'h400000 : 24'h200000); // for picking which slot to source from
+                        saddr <= recovering ? 24'h100000 :
+                                 (slot == 2'd2) ? 24'h600000 :
+                                 (slot == 2'd1) ? 24'h400000 : 24'h200000; // source slot
                         daddr <= 24'h000000;
                         rsum <= 16'd0;
                         counter <= 2'd0;

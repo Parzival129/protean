@@ -11,7 +11,12 @@ module gb_top(
     output wire       lcd_den,
     output wire [4:0] lcd_r,
     output wire [5:0] lcd_g,
-    output wire [4:0] lcd_b
+    output wire [4:0] lcd_b,
+    output wire       cs,          // MSPI flash bus,  escape hatch drives these
+    output wire       sclk,
+    output wire       mosi,
+    input  wire       miso,
+    output wire       recfg_n     // reboot pin, driven by flash_ctrl
 );
 
     wire clk_gb;   // ~4.19 MHz core clock
@@ -45,6 +50,35 @@ module gb_top(
             poll <= 0;
             if (!i2c_busy) i2c_start <= 1'b1;   // ~10 Hz keyboard poll
         end else poll <= poll + 1'b1;
+    end
+
+    // escape hatch: hold both buttons -> copy the shell (slot 0) to boot + reconfig
+    reg flash_start = 1'b0;
+    reg switching = 1'b0;
+    reg [23:0] both_btn_cnt = 0;
+    wire flash_busy;
+
+    flash_ctrl #(.COPY_LEN(24'd950000)) u_flash (
+        .clk    (clk),
+        .start  (flash_start),
+        .slot_in(2'd0),         // shell staged in slot 0 (0x200000)
+        .cs     (cs),
+        .sclk   (sclk),
+        .mosi   (mosi),
+        .miso   (miso),
+        .busy   (flash_busy),
+        .recfg_n(recfg_n)
+    );
+
+    always @(posedge clk) begin
+        flash_start <= 1'b0;
+        if (btn1 && btn2) begin
+            both_btn_cnt <= both_btn_cnt + 1'b1;
+            if (both_btn_cnt == 24'd10000000 && !switching) begin
+                flash_start <= 1'b1;   // copy shell -> boot, verify, reconfig
+                switching   <= 1'b1;
+            end
+        end else both_btn_cnt <= 0;
     end
 
     wire [7:0] joypad;
