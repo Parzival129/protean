@@ -5,6 +5,8 @@ module gb_top(
     input  wire       clk,        // 27 MHz (pin 4)
     input  wire       btn1,       // reset
     input  wire       btn2,
+    inout  wire       scl,        // CardKB I2C (open-drain, 71/72)
+    inout  wire       sda,
     output wire       lcd_clk,
     output wire       lcd_den,
     output wire [4:0] lcd_r,
@@ -20,6 +22,38 @@ module gb_top(
         .rst_btn(btn1),
         .clk_gb (clk_gb),
         .rst    (rst_gb)
+    );
+
+    // CardKB over I2C: poll periodically, decode to joypad (reused from LA)
+    reg  i2c_start = 0;
+    reg  [22:0] poll = 0;
+    wire i2c_scl_oe, i2c_sda_oe, i2c_busy, kbd_valid, kbd_acked;
+    wire [7:0] kbd_byte;
+
+    i2c_master #(.ADDR(7'h5F), .DIV(4096)) u_kbd (
+        .clk(clk), .start(i2c_start),
+        .scl_oe(i2c_scl_oe), .sda_oe(i2c_sda_oe), .sda_in(sda),
+        .key(kbd_byte), .valid(kbd_valid), .acked(kbd_acked), .busy(i2c_busy)
+    );
+
+    assign scl = i2c_scl_oe ? 1'b0 : 1'bz;
+    assign sda = i2c_sda_oe ? 1'b0 : 1'bz;
+
+    always @(posedge clk) begin
+        i2c_start <= 1'b0;
+        if (poll == 23'd2700000) begin
+            poll <= 0;
+            if (!i2c_busy) i2c_start <= 1'b1;   // ~10 Hz keyboard poll
+        end else poll <= poll + 1'b1;
+    end
+
+    wire [7:0] joypad;
+    gb_keymap gb_keymap (
+        .clk      (clk),
+        .kbd_byte (kbd_byte),
+        .kbd_valid(kbd_valid),
+        .kbd_acked(kbd_acked),
+        .joypad   (joypad)
     );
 
     wire [15:0] cart_a;
@@ -41,7 +75,7 @@ module gb_top(
         .din  (cart_to_cpu),
         .wr   (cart_wr),
         .rd   (cart_rd),
-        .key  (8'h00),          // M4: CardKB -> joypad
+        .key  (joypad),         // CardKB -> joypad (gb_keymap)
         .hs   (gb_hs),
         .vs   (gb_vs),
         .cpl  (gb_cpl),

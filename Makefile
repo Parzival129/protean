@@ -150,7 +150,7 @@ GB := personas/gameboy
 
 gb: | $(BUILD)               ## build Game Boy persona (gb_top) + load to SRAM
 	cp $(GB)/roms/bootrom.mif bootrom.mif
-	yosys -p "read_verilog $(wildcard $(GB)/core/*.v) $(GB)/gb_top.v $(GB)/gb_clock.v $(GB)/gb_cart.v $(GB)/gb_video.v; synth_gowin -top gb_top -json $(BUILD)/gb.json"
+	yosys -p "read_verilog $(wildcard $(GB)/core/*.v) $(GB)/gb_top.v $(GB)/gb_clock.v $(GB)/gb_cart.v $(GB)/gb_video.v $(GB)/gb_keymap.v $(LA)/i2c_master.v; synth_gowin -top gb_top -json $(BUILD)/gb.json"
 	nextpnr-himbaechel --json $(BUILD)/gb.json --write $(BUILD)/gb_pnr.json \
 	    --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=$(GB)/gb.cst
 	gowin_pack -d $(FAMILY) -o $(BUILD)/gb.fs $(BUILD)/gb_pnr.json
