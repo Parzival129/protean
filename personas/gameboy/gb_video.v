@@ -1,5 +1,5 @@
 // gb_video.v — GB pixel stream -> framebuffer -> 480x272 LCD.
-// Two domains: write pixels in clk_gb, beam-race the panel in clk_lcd (cross via
+// Write pixels in clk_gb, beam-race the panel in clk_lcd (cross via
 // dual-port BRAM). Scale/center 160x144 into 480x272.
 
 module gb_video(
@@ -52,11 +52,19 @@ module gb_video(
     wire [9:0] y = vc - V_BP;   // 0-271
     wire active = (hc >= H_BP && hc < H_BP+H_ACT) && (vc >= V_BP && vc < V_BP+V_ACT);
 
+    // GB row/col, 8-bit to match the writer's yi/xi so the framebuffer infers as one clean dual-port BRAM. 
+    // 2x: 320x272, 8-row vertical crop, centered 
+    wire [7:0] gb_col = (x - 80) >> 1;   // 0..159
+    wire [7:0] gb_row = (y >> 1) + 4;    // 4..139
+    // --- 1:1: 160x144, centered (also uncomment the 1:1 window below)
+    // wire [7:0] gb_col = x - 160;      // 0..159
+    // wire [7:0] gb_row = y - 64;       // 0..143
+
     reg [1:0] fb_shade;
 
     always @(posedge clk_lcd) begin
         pix_tick <= 1'd0;
-        fb_shade <= framebuffer[(y-64)*160 + (x-160)];
+        fb_shade <= framebuffer[gb_row*160 + gb_col];
         lcd_clk <= (ph == 1);
 
         if (ph == 2) begin
@@ -69,7 +77,8 @@ module gb_video(
         if (pix_tick) begin
             lcd_den <= active;
             if (active) begin
-                if (x >= 160 && x < 320 && y >= 64 && y < 208) begin  // window guard, is it in the portion of the screen where a picture is being shown
+                if (x >= 80 && x < 400) begin  // 2x window: 320px wide, thin side borders, full height
+                // if (x >= 160 && x < 320 && y >= 64 && y < 208) begin  // 1:1 window (with the 1:1 wires above)
                     case (fb_shade) // map 2bit shade to rgb color
                         2'b00: begin // white
                             lcd_r <= 31;
