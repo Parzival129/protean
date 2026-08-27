@@ -17,7 +17,7 @@ FS    := $(BUILD)/protean.fs
 
 .PHONY: all load flash detect clean \
         blinkA blinkB flash-blinkA flash-blinkB stage-golden stage-slot0 stage-slot1 reconfig \
-        firmware soc la stage-shell stage-la gb sim-gb
+        firmware soc la stage-shell stage-la gb stage-gb sim-gb
 
 all: $(FS)
 
@@ -67,11 +67,13 @@ blinkA blinkB: | $(BUILD)
 # --- Flash slot map (8 MB onboard flash; 1 MB slots) --------------------------
 # 0x000000  BOOT / active slot  — what the FPGA loads on power-up & on RECONFIG_N
 # 0x100000  GOLDEN recovery     — immutable known-good (blinkA)  [reserved]
-# 0x200000  persona SLOT 0       — blinkB (fast); self-switch copies a slot -> boot
-# 0x400000  persona SLOT 1       — blinkA (slow)
+# 0x200000  persona SLOT 0       — SHELL (personas copy this back to boot on escape)
+# 0x400000  persona SLOT 1       — LOGIC ANALYZER
+# 0x600000  persona SLOT 2       — GAME BOY
 GOLDEN_OFF := 0x100000
 STAGE_OFF  := 0x200000
 SLOT1_OFF  := 0x400000
+SLOT2_OFF  := 0x600000
 #
 # SAFETY: this JTAG cable (BL616) reflashes the boot region independently of the
 # loaded bitstream, so an addr-0 write can ALWAYS be recovered — `make flash-blinkA`
@@ -148,13 +150,24 @@ stage-la: | $(BUILD)         ## build LA + stage into persona SLOT 1 (0x400000) 
 # ---------------------------------------------------------------------------
 GB := personas/gameboy
 
+GB_SRC := $(wildcard $(GB)/core/*.v) $(GB)/gb_top.v $(GB)/gb_clock.v $(GB)/gb_cart.v \
+          $(GB)/gb_video.v $(GB)/gb_keymap.v $(LA)/i2c_master.v common/spi.v common/flash_ctrl.v
+
 gb: | $(BUILD)               ## build Game Boy persona (gb_top) + load to SRAM
 	cp $(GB)/roms/bootrom.mif bootrom.mif
-	yosys -p "read_verilog $(wildcard $(GB)/core/*.v) $(GB)/gb_top.v $(GB)/gb_clock.v $(GB)/gb_cart.v $(GB)/gb_video.v $(GB)/gb_keymap.v $(LA)/i2c_master.v; synth_gowin -top gb_top -json $(BUILD)/gb.json"
+	yosys -p "read_verilog $(GB_SRC); synth_gowin -top gb_top -json $(BUILD)/gb.json"
 	nextpnr-himbaechel --json $(BUILD)/gb.json --write $(BUILD)/gb_pnr.json \
 	    --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=$(GB)/gb.cst
-	gowin_pack -d $(FAMILY) -o $(BUILD)/gb.fs $(BUILD)/gb_pnr.json
+	gowin_pack -d $(FAMILY) --mspi_as_gpio -o $(BUILD)/gb.fs $(BUILD)/gb_pnr.json
 	openFPGALoader -b $(BOARD) $(BUILD)/gb.fs
+
+stage-gb: | $(BUILD)         ## build GB + stage into persona SLOT 2 (0x600000) — shell menu "GAME BOY" -> GB
+	cp $(GB)/roms/bootrom.mif bootrom.mif
+	yosys -p "read_verilog $(GB_SRC); synth_gowin -top gb_top -json $(BUILD)/gb.json"
+	nextpnr-himbaechel --json $(BUILD)/gb.json --write $(BUILD)/gb_pnr.json \
+	    --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=$(GB)/gb.cst
+	gowin_pack -d $(FAMILY) --mspi_as_gpio -o $(BUILD)/gb.fs $(BUILD)/gb_pnr.json
+	openFPGALoader -b $(BOARD) -f --external-flash -o $(SLOT2_OFF) $(BUILD)/gb.fs
 
 sim-gb-%: | $(BUILD)         ## simulate a GB module: make sim-gb-<name> pairs sim/<name>_tb.v with the core
 	cp $(GB)/roms/bootrom.mif bootrom.mif

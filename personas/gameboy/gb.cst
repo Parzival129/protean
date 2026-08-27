@@ -3,6 +3,18 @@
 IO_LOC  "clk" 4;
 IO_PORT "clk" IO_TYPE=LVCMOS33 PULL_MODE=UP;
 
+// reconfig trigger + MSPI flash bus (freed by --mspi_as_gpio) for the escape hatch
+IO_LOC  "recfg_n" 9;
+IO_PORT "recfg_n" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC  "cs" 60;
+IO_PORT "cs" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC  "sclk" 59;
+IO_PORT "sclk" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC  "mosi" 61;
+IO_PORT "mosi" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC  "miso" 62;
+IO_PORT "miso" IO_TYPE=LVCMOS33 DRIVE=8;
+
 // CardKB keyboard I2C (open-drain, pins 71/72)
 IO_LOC  "scl" 71;
 IO_PORT "scl" IO_TYPE=LVCMOS33 PULL_MODE=UP;

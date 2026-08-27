@@ -42,10 +42,11 @@ void main(void)
         else if (k == KEY_ENTER) { // switch into the selected persona
             printline(0, "SWITCHING");
             if (sel == 1)
-                FLASH = 0; // PERSONA 0 -> slot 0
+                FLASH = 0; // SHELL      -> slot 0 (0x200000)
             else if (sel == 2)
-                FLASH = 1; // PERSONA 1 -> slot 1
-            // sel == 3 (RECOVERY): not wired to a slot yet
+                FLASH = 1; // LOGIC ANALYZER -> slot 1 (0x400000)
+            else if (sel == 3)
+                FLASH = 2; // GAME BOY   -> slot 2 (0x600000)
         }
 
         for (volatile int i = 0; i < 20000; i++); // poll rate

@@ -112,7 +112,7 @@ module la_top(
     flash_ctrl #(.COPY_LEN(24'd950000)) u_flash (   // shell bitstream is ~907 KB — must cover it fully
         .clk(clk),
         .start(flash_start),
-        .slot_in(1'b0),        // shell staged in slot 0 (0x200000)
+        .slot_in(2'd0),        // shell staged in slot 0 (0x200000)
         .cs(cs),
         .sclk(sclk),
         .mosi(mosi),

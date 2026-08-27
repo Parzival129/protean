@@ -19,8 +19,9 @@ module soc_top (
     inout  wire       scl,     // CardKB I2C (open-drain)
     inout  wire       sda
 );
-    // bitstream size to copy per switch (real persona ~0.6 MB)
-    parameter COPY_LEN = 24'd600000;
+    // bitstream size to copy per switch — must cover the LARGEST persona.
+    // GW2A-18 full-fabric persona (e.g. Game Boy) ~907 KB, so 950000 with margin.
+    parameter COPY_LEN = 24'd950000;
 
     // power-on reset, hold low for the first 256 cycles
     reg [7:0] rst_cnt = 8'd0;
@@ -99,7 +100,7 @@ module soc_top (
     // flash switcher peripheral: write 0x6000_0000 with the slot -> start a
     // switch; read it back for the busy flag.
     reg  flash_start = 1'b0;
-    reg  flash_slot  = 1'b0;
+    reg  [1:0] flash_slot = 2'b0;
     wire flash_busy;
 
     flash_ctrl #(.COPY_LEN(COPY_LEN)) u_flash (
@@ -144,7 +145,7 @@ module soc_top (
             end
             else if (mem_addr == 32'h6000_0000) begin // flash: write slot -> switch, read -> busy
                 if (|mem_wstrb) begin
-                    flash_slot  <= mem_wdata[0];
+                    flash_slot  <= mem_wdata[1:0];
                     flash_start <= 1'b1;
                 end
                 mem_rdata <= {31'b0, flash_busy};
