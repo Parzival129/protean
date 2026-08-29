@@ -1,6 +1,7 @@
-#include "soc.h"
 #include "keyboard.h"
+#include "soc.h"
 
+// print to the screen
 void printline(int row, const char* s)
 {
     volatile uint32_t* cell = TEXT + row * COLS; // start of this row
@@ -14,6 +15,14 @@ void printline(int row, const char* s)
         i++;
     }
 }
+
+// shift byte, hold CS low
+// uint8_t sd_xfer(uint8_t out) {
+//     for (int i = 7; i >= 0; i--) {
+//         int bit = (out >> i) & 1;
+
+//     }
+// }
 
 // keyboard-driven persona menu
 //   down/up move the highlight, enter commits the switch
@@ -31,15 +40,13 @@ void main(void)
             else
                 sel++;
             SEL = sel;
-        }
-        else if (k == KEY_UP) { // previous persona, wrapping
+        } else if (k == KEY_UP) { // previous persona, wrapping
             if (sel == 1)
                 sel = 3;
             else
                 sel--;
             SEL = sel;
-        }
-        else if (k == KEY_ENTER) { // switch into the selected persona
+        } else if (k == KEY_ENTER) { // switch into the selected persona
             printline(0, "SWITCHING");
             if (sel == 1)
                 FLASH = 0; // SHELL      -> slot 0 (0x200000)
@@ -49,6 +56,7 @@ void main(void)
                 FLASH = 2; // GAME BOY   -> slot 2 (0x600000)
         }
 
-        for (volatile int i = 0; i < 20000; i++); // poll rate
+        for (volatile int i = 0; i < 20000; i++)
+            ; // poll rate
     }
 }
