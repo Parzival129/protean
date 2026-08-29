@@ -38,3 +38,6 @@ venv/
 .idea/
 *.swp
 .DS_Store
+
+# demo videos: local only (MP4s are heavy; GIFs are tracked for the README)
+media/*.mp4

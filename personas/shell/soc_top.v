@@ -17,8 +17,18 @@ module soc_top (
     input  wire       miso,
     output wire       recfg_n,
     inout  wire       scl,     // CardKB I2C (open-drain)
-    inout  wire       sda
+    inout  wire       sda,
+    output wire       sd_clk,
+    output wire       sd_cmd,
+    input  wire       sd_data,
+    output  wire      sd_cs
 );
+
+    reg [5:0] gpio_reg = 6'b0;
+    assign sd_clk = gpio_reg[0]; // drive outputs
+    assign sd_cmd = gpio_reg[1];
+    assign sd_cs = gpio_reg[2];
+
     // bitstream size to copy per switch — must cover the LARGEST persona.
     // GW2A-18 full-fabric persona (e.g. Game Boy) ~907 KB, so 950000 with margin.
     parameter COPY_LEN = 24'd950000;
@@ -128,7 +138,7 @@ module soc_top (
                 mem_ready <= 1'b1;
             end
             else if (sel_led) begin
-                if (|mem_wstrb) led_reg <= mem_wdata[5:0];
+                if (|mem_wstrb) led_reg <= mem_wdata[5:0]; // if its a write
                 mem_rdata <= {26'b0, led_reg};
                 mem_ready <= 1'b1;
             end
@@ -158,6 +168,11 @@ module soc_top (
                 end
                 mem_rdata <= {30'b0, scl_in, sda_in}; // bit0 SDA, bit1 SCL
                 mem_ready <= 1'b1;
+            end
+            else if (mem_addr == 32'h8000_0000) begin // SD card
+                if (|mem_wstrb) gpio_reg <= mem_wdata;
+                mem_rdata <= {20'b0, sd_data};
+                mem_ready <= 1'd1;
             end
             else begin
                 mem_rdata <= 32'b0;
