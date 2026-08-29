@@ -1,10 +1,12 @@
 # Protean
 
-An FPGA cyberdeck that reconfigures its own fabric.
+**A self-reconfiguring FPGA platform: a soft RISC-V SoC that rewrites its own bitstream to become different hardware.**
 
-Most handheld "decks" are a small Linux computer running different apps. Protean is the other thing: it runs on a Sipeed Tang Nano 20K, and instead of swapping software on a fixed CPU, it loads a different bitstream and the chip *becomes* a different device. Right now it can turn into a logic analyzer or a Game Boy, chosen from a menu on the screen.
+Protean runs on a Sipeed Tang Nano 20K (Gowin GW2AR-18). A picorv32-based SoC — the *shell* — presents a menu; selecting a persona makes the deck reprogram the FPGA's boot flash *from within the running fabric* and reconfigure, so the same silicon comes back up as an entirely different design: a logic analyzer, or a Game Boy. Any persona can hand control back to the shell the same way. No host PC is involved once it's flashed.
 
-It's all built with an open-source FPGA toolchain (yosys, nextpnr, apicula, openFPGALoader) — no vendor EDA anywhere in the flow. This is a learn-by-doing project to familiarize myself further with Verilog and interfacing with peripherals through different communication protocols;
+It's all hand-written RTL and bare-metal C on a fully open-source flow — no vendor EDA anywhere. I built it to go deep on CPU/SoC design, digital logic, and driving real peripherals over their native protocols.
+
+**Stack:** Verilog RTL · bare-metal RV32I C · custom SoC bus + memory-mapped peripherals · SPI & I²C protocol engines · clock-domain crossing · self-checking `iverilog` testbenches · yosys / nextpnr-himbaechel / apicula / openFPGALoader (FOSS flow)
 
 ![Tetris running on the deck](media/tetris-title.jpg)
 
@@ -49,6 +51,26 @@ power on → shell (menu) → pick a persona
 ```
 
 Each persona bundles a tiny fabric SPI-flash writer for the "escape back to shell" path, so no PC is involved once it's flashed.
+
+## Under the hood
+
+The interesting parts are the subsystems — all hand-written RTL and bare-metal C:
+
+- **Custom RISC-V SoC (the shell).** A picorv32 core on a memory-mapped bus I wired up myself: on-chip RAM with the firmware baked in via `$readmemh`, the LCD text buffer, buttons, the flash switcher, and the I²C/SD peripherals, each decoded at its own address. No OS — the firmware is bare-metal RV32I.
+
+- **SPI flash byte engine (`flash_ctrl.v`).** A fabric-resident SPI master FSM that reprograms the onboard flash *from within the running design*: write-enable, 64 KB block erase, 256-byte page program, and a read-back checksum verify, streaming the full ~900 KB bitstream a page at a time — then it pulses `RECONFIG_N` to reboot the FPGA into the new image. Falls back to a golden slot on a bad copy. This is the engine that lets the deck reconfigure itself with no host.
+
+- **Hand-written I²C master (`i2c_master.v`).** A quarter-bit tick divider drives a four-phase bit clock through a START → address → ACK → data → NACK → STOP state machine — open-drain (drive-low / release-to-pull-up), with two-flop input synchronization. Reads the CardKB keyboard.
+
+- **Passive I²C decoder (`i2c_decode.v`).** The mirror image: a bus monitor that reconstructs the protocol from the SCL/SDA lines alone — edge-detected START/STOP, a byte shifted in on each SCL rising edge, ACK on the 9th bit, address-vs-data tracking. The Logic Analyzer uses it to decode the deck's *own* keyboard traffic on screen.
+
+- **Bare-metal C firmware.** RV32I with no runtime beyond what it needs — a menu state machine, a keyboard driver over the I²C peripheral, and small memory-mapped drivers that write the LCD text buffer and kick the flash switcher.
+
+- **LCD beam-racer + a clock-domain crossing.** A video timing generator (H/V counters, porches, a ~9 MHz pixel clock from a phase divider) drives the 480×272 RGB panel, with glyphs from a font ROM. In the Game Boy persona it feeds a **dual-clock framebuffer** (inferred block RAM) that carries pixels from the emulated core's ~4.5 MHz domain into the 27 MHz display domain.
+
+- **Logic-analyzer front end.** Two-flop-synchronized sampling, a configurable edge trigger, and a **pre-trigger ring buffer** so you see what happened *before* the trigger fired.
+
+- **Verification.** Self-checking `iverilog` testbenches for the sampler, trigger, ring-buffer capture, the I²C master (driven against a fake CardKB slave on a wired-AND bus), the decoder, and the Game Boy bring-up.
 
 ## Hardware
 
