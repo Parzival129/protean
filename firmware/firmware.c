@@ -74,6 +74,10 @@ void print_hex(int row, const char* label, uint8_t v)
     printline(row, buf);
 }
 
+int sd_hc = 0; // 1 = SDHC/SDXC card (addresses in blocks, not bytes)
+int sd_ok = 0; // 1 = card initialized successfully
+
+// initialize the SD card into SPI mode
 void sd_init()
 {
     for (int i = 0; i < 80; i++) { // pulse clk 80 times
@@ -81,8 +85,57 @@ void sd_init()
         SD = (1 << 2) | (1 << 1) | 1;
     }
     SD = (0 << 2) | (1 << 1) | 0; // cs, clock low
-    uint8_t resp = sd_command(0, 0, 0x95); // CMD0 to test
-    print_hex(1, "R1: ", resp); // expect "R1: 01"
+    sd_ok = 0;
+
+    uint8_t r = sd_command(0, 0, 0x95); // CMD0
+    if (r != 0x01)
+        return; // no card / not idle
+
+    sd_command(8, 0x1AA, 0x87); // CMD8, discard the 4 trailing R7 bytes
+    for (int i = 0; i < 4; i++)
+        sd_xfer(0xFF);
+
+    for (int i = 0; i < 1000; i++) { // ACMD41: poll until the card leaves idle
+        sd_command(55, 0, 0xFF);
+        r = sd_command(41, 0x40000000, 0xFF);
+        if (r == 0x00)
+            break;
+    }
+    if (r != 0x00)
+        return; // init never completed
+
+    sd_command(58, 0, 0xFF); // CMD58: OCR, CCS bit picks block vs byte addressing
+    uint8_t ocr[4];
+    for (int i = 0; i < 4; i++)
+        ocr[i] = sd_xfer(0xFF);
+    sd_hc = (ocr[0] & 0x40) != 0;
+
+    sd_ok = 1;
+}
+
+// read a 512 byte block of data
+uint8_t sd_read_block(uint32_t block, uint8_t* buf)
+{
+    uint32_t r;
+    uint32_t addr = sd_hc ? block : block * 512; // depends on the sd type
+    r = sd_command(17, addr, 0xFF); // CMD17
+    if (r)
+        return r; // non-zero, didn't accept command, return error
+
+    for (int i = 0; i < 1000; i++) {
+        r = sd_xfer(0xFF);
+        if (r != 0xFF)
+            break; // recieved something (token or error), stop waiting
+    }
+    if (r != 0xFE)
+        return r; // 0xFE = data follows; anything else is an error
+
+    for (int i = 0; i < 512; i++) { // clock all 512 bytes through MISO
+        buf[i] = sd_xfer(0xFF);
+    }
+    sd_xfer(0xFF);
+    sd_xfer(0xFF); // clock out 2 discarded CRC bytes
+    return 0;
 }
 
 // keyboard-driven persona menu
