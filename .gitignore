@@ -21,6 +21,9 @@ personas/gameboy/roms/*.gb
 
 # --- Verilator / simulation ---
 obj_dir/
+# cocotb / pyuvm build + results
+verif/**/sim_build/
+verif/**/results.xml
 *.vcd           # waveform dumps
 *.fst
 *.gtkw          # gtkwave save files (drop this line to track curated views)
