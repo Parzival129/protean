@@ -1,7 +1,8 @@
 import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge
-from pyuvm import uvm_test, uvm_root, uvm_sequence_item, uvm_sequence, uvm_driver, uvm_sequencer, ConfigDB
+from pyuvm import uvm_test, uvm_root, uvm_sequence_item, uvm_sequence, uvm_driver, uvm_sequencer, ConfigDB,  uvm_monitor, uvm_analysis_port, uvm_scoreboard, uvm_tlm_analysis_fifo, uvm_subscriber
+
 
 class I2CTransaction(uvm_sequence_item): # i2c transaciton class to test
     def __init__(self, name="itc_txn"):
@@ -22,6 +23,7 @@ class I2CSeq(uvm_sequence):
 class I2CDriver(uvm_driver):
     def build_phase(self):
         self.dut = ConfigDB().get(self, "", "DUT") # set up DUT from cocotb handle
+        self.ap = uvm_analysis_port("ap", self)
 
     # pulled directly from test_i2c_read.py from I2CSlaveBFM.run
     async def drive(self, txn):
@@ -98,8 +100,48 @@ class I2CDriver(uvm_driver):
         while True:
             txn = await self.seq_item_port.get_next_item()
             await self.drive(txn) # drive the full transaction test
+            self.ap.write(txn) # broadcast
             self.logger.info(f"driving transaction: {txn}") 
             self.seq_item_port.item_done()
+
+# watch valid / key to confirm transactions
+class I2CMonitor(uvm_monitor):
+
+    def build_phase(self):
+        self.dut = ConfigDB().get(self, "", "DUT") # set up DUT from cocotb handle
+        self.ap = uvm_analysis_port("ap", self) # broadcast port, send data to anyone asking
+
+    async def run_phase(self):
+        valid_prev = 0
+        while True:
+
+            await RisingEdge(self.dut.clk)
+            valid_sig = self.dut.valid.value
+            valid = 1 if (valid_sig.is_resolvable and int(valid_sig) == 1) else 0  # watc the bus for a completed read
+
+            if (valid_prev == 0 and valid == 1): # rising edge pulse
+                key = int(self.dut.key.value) # replicates a transaction based on what its read from the bus
+                txn = I2CTransaction()
+                txn.data = key
+                self.ap.write(txn)
+
+            valid_prev = valid
+
+    
+class I2CScoreboard(uvm_scoreboard):
+    def build_phase(self):
+        self.exp_fifo = uvm_tlm_analysis_fifo("exp_fifo", self) # from driver (expected)
+        self.obs_fifo = uvm_tlm_analysis_fifo("obv_fifo", self) # from monitor (observed)
+        self.matches = 0
+        self.errors = 0
+
+    async def run_phase(self):
+        while True:
+            expected = await self.exp_fifo.get()   # blocks until driver broadcasts
+            observed = await self.obs_fifo.get()   # blocks until monitor broadcast s
+            if (expected.data == observed.data): # compare transaction objects
+                self.matches += 1
+            else: self.errors += 1
 
 class I2CTest(uvm_test):
 
@@ -107,17 +149,24 @@ class I2CTest(uvm_test):
         self.seqr = uvm_sequencer("seqr", self)
         self.driver = I2CDriver("driver", self)
         self.dut = ConfigDB().get(self, "", "DUT")
+        self.monitor = I2CMonitor("monitor", self)
+        self.scoreboard = I2CScoreboard("scoreboard", self)
 
-    def connect_phase(self): # WIRE driver's port to the sequencer's export
+    def connect_phase(self): # WIRE driver's port to the sequencer's export and the driver monitor fifos
         self.driver.seq_item_port.connect(self.seqr.seq_item_export)
+        self.driver.ap.connect(self.scoreboard.exp_fifo.analysis_export)
+        self.monitor.ap.connect(self.scoreboard.obs_fifo.analysis_export)
 
     async def run_phase(self): # RUN THE SHOW (no pins, no transactions here)
         self.raise_objection() # test is busy
         await I2CSeq("seq").start(self.seqr) # run one transaction through the sequencer
-        assert int(self.dut.key.value) == 0x41, f"expected 0x41, got {int(self.dut.key.value):#x}"
+        for i in range(20): await RisingEdge(self.dut.clk) # wait a few clock cycles to allow monitor + scoreboard time to work
+        assert (int(self.scoreboard.errors) == 0 and int(self.scoreboard.matches) > 0), f"expected 0 errors got {int(self.scoreboard.errors)} errors"
+        self.logger.info(f"{self.scoreboard.matches} matches, {self.scoreboard.errors} errors") 
         self.drop_objection() # test is done
 
-
+    
+    
 @cocotb.test()
 async def run_uvm(dut):
     cocotb.start_soon(Clock(dut.clk, 10, unit="ns").start()) # setup clock
