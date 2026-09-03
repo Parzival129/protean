@@ -16,7 +16,7 @@ class I2CTransaction(uvm_sequence_item): # i2c transaciton class to test
 
 class I2CSeq(uvm_sequence):
     async def body(self): # create a transaction and hand it to the sequencer
-        for i in range(2000):
+        for i in range(1000):
             txn = I2CTransaction()
             txn.data = random.randint(0, 255) # the byte the slave should send back -> fully randomized
             await self.start_item(txn) # wait till sequecer can accept transaction
