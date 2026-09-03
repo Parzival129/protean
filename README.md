@@ -6,7 +6,7 @@ Protean runs on a Sipeed Tang Nano 20K (Gowin GW2AR-18). A picorv32-based SoC �
 
 It's all hand-written RTL and bare-metal C on a fully open-source flow — no vendor EDA anywhere. I built it to go deep on CPU/SoC design, digital logic, and driving real peripherals over their native protocols.
 
-**Stack:** Verilog RTL · bare-metal RV32I C · custom SoC bus + memory-mapped peripherals · SPI & I²C protocol engines · clock-domain crossing · self-checking `iverilog` testbenches · yosys / nextpnr-himbaechel / apicula / openFPGALoader (FOSS flow)
+**Stack:** Verilog RTL · bare-metal RV32I C · custom SoC bus + memory-mapped peripherals · SPI & I²C protocol engines · clock-domain crossing · self-checking `iverilog` testbenches · a constrained-random UVM verification env (cocotb + pyuvm) with functional coverage · yosys / nextpnr-himbaechel / apicula / openFPGALoader (FOSS flow)
 
 ![Tetris running on the deck](media/tetris-title.jpg)
 
@@ -70,7 +70,7 @@ The interesting parts are the subsystems — all hand-written RTL and bare-metal
 
 - **Logic-analyzer front end.** Two-flop-synchronized sampling, a configurable edge trigger, and a **pre-trigger ring buffer** so you see what happened *before* the trigger fired.
 
-- **Verification.** Self-checking `iverilog` testbenches for the sampler, trigger, ring-buffer capture, the I²C master (driven against a fake CardKB slave on a wired-AND bus), the decoder, and the Game Boy bring-up.
+- **Verification.** Two layers. First, self-checking `iverilog` testbenches for the sampler, trigger, ring-buffer capture, the I²C master (driven against a fake CardKB slave on a wired-AND bus), the decoder, and the Game Boy bring-up. On top of that, a proper **constrained-random UVM environment** (cocotb + pyuvm) for the I²C master in `verif/`: a driver/monitor/scoreboard testbench with analysis ports, a Python slave BFM as the reference model, randomized stimulus, and functional coverage. A 1,000-transaction random regression runs fully self-checking — zero mismatches against the model, 98.4% functional coverage — the same methodology used to sign off production ASIC/FPGA RTL.
 
 ## Hardware
 
@@ -81,7 +81,7 @@ The interesting parts are the subsystems — all hand-written RTL and bare-metal
 
 ## Toolchain
 
-Fully open source: `yosys` → `nextpnr-himbaechel` → `apicula` (`gowin_pack`) → `openFPGALoader`.
+Fully open source: `yosys` → `nextpnr-himbaechel` → `apicula` (`gowin_pack`) → `openFPGALoader` for the hardware flow, and `iverilog` + `cocotb` / `pyuvm` / `cocotb-coverage` for verification.
 
 ## Building
 
@@ -110,6 +110,7 @@ protean/
 ├── common/             shared RTL: picorv32, flash writer, SPI, LCD text, font
 ├── firmware/           C for the shell's soft core
 ├── sim/                iverilog testbenches
+├── verif/              cocotb + pyuvm constrained-random UVM env (I²C master)
 ├── tools/              helper scripts (e.g. gb2hex.py)
 └── Makefile            synth → P&R → pack → load pipeline
 ```
