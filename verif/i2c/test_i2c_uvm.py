@@ -1,6 +1,7 @@
 import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge
+from cocotb_coverage.coverage import CoverPoint, coverage_db
 from pyuvm import uvm_test, uvm_root, uvm_sequence_item, uvm_sequence, uvm_driver, uvm_sequencer, ConfigDB,  uvm_monitor, uvm_analysis_port, uvm_scoreboard, uvm_tlm_analysis_fifo, uvm_subscriber
 import random
 
@@ -15,7 +16,7 @@ class I2CTransaction(uvm_sequence_item): # i2c transaciton class to test
 
 class I2CSeq(uvm_sequence):
     async def body(self): # create a transaction and hand it to the sequencer
-        for i in range(1000):
+        for i in range(2000):
             txn = I2CTransaction()
             txn.data = random.randint(0, 255) # the byte the slave should send back -> fully randomized
             await self.start_item(txn) # wait till sequecer can accept transaction
@@ -144,6 +145,21 @@ class I2CScoreboard(uvm_scoreboard):
                 self.matches += 1
             else: self.errors += 1
 
+@CoverPoint("top.i2c.data", xf=lambda txn: txn.data, bins=list(range(256))) # marks what bytes have been hit (0-255)
+def sample_data(txn):
+    pass # decorator samples when called, leave empty
+
+class I2CCoverage(uvm_subscriber):
+    def build_phase(self):
+        pass
+
+    def write(self, txn):
+        sample_data(txn) # sample for every txn broadcast
+
+    def check_phase(self):
+        coverage_db.report_coverage(self.logger.info, bins=True) # report coverage
+        self.logger.info(f"Total byte coverage: {coverage_db["top.i2c.data"].cover_percentage}%")
+
 class I2CTest(uvm_test):
 
     def build_phase(self): # CONSTRUCT the components
@@ -152,11 +168,13 @@ class I2CTest(uvm_test):
         self.dut = ConfigDB().get(self, "", "DUT")
         self.monitor = I2CMonitor("monitor", self)
         self.scoreboard = I2CScoreboard("scoreboard", self)
+        self.coverage = I2CCoverage("coverage", self)
 
     def connect_phase(self): # WIRE driver's port to the sequencer's export and the driver monitor fifos
         self.driver.seq_item_port.connect(self.seqr.seq_item_export)
         self.driver.ap.connect(self.scoreboard.exp_fifo.analysis_export)
         self.monitor.ap.connect(self.scoreboard.obs_fifo.analysis_export)
+        self.monitor.ap.connect(self.coverage.analysis_export)
 
     async def run_phase(self): # RUN THE SHOW (no pins, no transactions here)
         self.raise_objection() # test is busy
