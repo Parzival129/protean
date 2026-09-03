@@ -2,7 +2,7 @@ import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge
 from pyuvm import uvm_test, uvm_root, uvm_sequence_item, uvm_sequence, uvm_driver, uvm_sequencer, ConfigDB,  uvm_monitor, uvm_analysis_port, uvm_scoreboard, uvm_tlm_analysis_fifo, uvm_subscriber
-
+import random
 
 class I2CTransaction(uvm_sequence_item): # i2c transaciton class to test
     def __init__(self, name="itc_txn"):
@@ -15,10 +15,11 @@ class I2CTransaction(uvm_sequence_item): # i2c transaciton class to test
 
 class I2CSeq(uvm_sequence):
     async def body(self): # create a transaction and hand it to the sequencer
-        txn = I2CTransaction()
-        txn.data = 0x41 # the byte the slave should send back (the sequence chooses data)
-        await self.start_item(txn) # wait till sequecer can accept transaction
-        await self.finish_item(txn) # wait till confirmed trnasaction
+        for i in range(1000):
+            txn = I2CTransaction()
+            txn.data = random.randint(0, 255) # the byte the slave should send back -> fully randomized
+            await self.start_item(txn) # wait till sequecer can accept transaction
+            await self.finish_item(txn) # wait till confirmed trnasaction
 
 class I2CDriver(uvm_driver):
     def build_phase(self):
