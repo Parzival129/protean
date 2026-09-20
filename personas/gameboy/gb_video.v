@@ -5,6 +5,7 @@
 module gb_video(
     input  wire       clk_lcd,   // 27 MHz
     input  wire       clk_gb,
+    input  wire       flash_busy, // high while flash_ctrl is copying -> switch indicator
     input  wire       hs,        // end of 160-px line
     input  wire       vs,        // end of 144-line frame
     input  wire       cpl,
@@ -77,7 +78,12 @@ module gb_video(
         if (pix_tick) begin
             lcd_den <= active;
             if (active) begin
-                if (x >= 80 && x < 400) begin  // 2x window: 320px wide, thin side borders, full height
+                if (flash_busy && x < 16 && y < 16) begin
+                    lcd_r <= 0;        // blue box top-left = switching back to shell
+                    lcd_g <= 0;
+                    lcd_b <= 5'h1F;
+                end
+                else if (x >= 80 && x < 400) begin  // 2x window: 320px wide, thin side borders, full height
                 // if (x >= 160 && x < 320 && y >= 64 && y < 208) begin  // 1:1 window (with the 1:1 wires above)
                     case (fb_shade) // map 2bit shade to rgb color
                         2'b00: begin // white

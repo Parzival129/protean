@@ -133,6 +133,7 @@ module gb_top(
     gb_video gb_video (
         .clk_lcd(clk),
         .clk_gb (clk_gb),
+        .flash_busy(flash_busy),
         .hs     (gb_hs),
         .vs     (gb_vs),
         .cpl    (gb_cpl),

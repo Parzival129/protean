@@ -1,6 +1,7 @@
 module spi #(
     //parameter integer N = 13500000 // oscillate every 0.5 seconds on the 27Mhz clock
-    parameter integer N = 27 // for much more barable wait times
+    parameter integer N = 3 // 27MHz/3 = 9MHz tick -> 4.5MHz SCLK, 1.78us/byte.
+    // Persona switch ~8s at this setting (N=4 -> 10s, N=27 -> 50s).
 ) (
     input wire clk,
     input wire start,

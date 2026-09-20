@@ -17,7 +17,8 @@ FS    := $(BUILD)/protean.fs
 
 .PHONY: all load flash detect clean \
         blinkA blinkB flash-blinkA flash-blinkB stage-golden stage-slot0 stage-slot1 reconfig \
-        firmware soc la stage-shell stage-la gb stage-gb sim-gb
+        firmware soc la stage-shell stage-la gb stage-gb sim-gb \
+        boot-shell demo-ready demo-reset
 
 all: $(FS)
 
@@ -173,3 +174,38 @@ sim-gb-%: | $(BUILD)         ## simulate a GB module: make sim-gb-<name> pairs s
 	cp $(GB)/roms/bootrom.mif bootrom.mif
 	iverilog -g2012 -I $(GB)/core -o $(BUILD)/$*_tb.vvp sim/$*_tb.v $(wildcard $(GB)/core/*.v) $(wildcard $(GB)/gb_*.v)
 	vvp $(BUILD)/$*_tb.vvp
+
+# ---------------------------------------------------------------------------
+# Demo setup. `make demo-ready` is the one command: rebuild + stage all three
+# personas into their slots, refresh the golden fallback, then write the shell
+# into the BOOT region so the board powers on at the menu with no PC attached.
+#
+# Slot map lives above. The BOOT write must come last — it is what decides
+# which persona the board comes up in.
+#
+#   make demo-ready   full rebuild + stage everything + park at the menu  (~5-10 min)
+#   make demo-reset   just re-park at the menu after a rehearsal          (~5 s)
+# ---------------------------------------------------------------------------
+
+boot-shell:                  ## write build/soc.fs to the BOOT region (0x0) — powers on at the menu
+	openFPGALoader -b $(BOARD) -f $(BUILD)/soc.fs
+
+demo-reset: boot-shell       ## re-park the board at the menu (alias for boot-shell, no rebuild)
+
+demo-ready: | $(BUILD)       ## ONE COMMAND: rebuild + stage all personas, park the board at the menu
+	@echo "==> [1/5] shell          -> SLOT 0  (0x200000)"
+	@$(MAKE) --no-print-directory stage-shell
+	@echo "==> [2/5] logic analyzer -> SLOT 1  (0x400000)"
+	@$(MAKE) --no-print-directory stage-la
+	@echo "==> [3/5] game boy       -> SLOT 2  (0x600000)"
+	@$(MAKE) --no-print-directory stage-gb
+	@echo "==> [4/5] blinkA         -> GOLDEN  (0x100000)"
+	@$(MAKE) --no-print-directory stage-golden
+	@echo "==> [5/5] shell          -> BOOT    (0x000000)"
+	@$(MAKE) --no-print-directory boot-shell
+	@echo ""
+	@echo "================================================================"
+	@echo "  demo ready."
+	@echo "  now POWER-CYCLE the board (unplug USB, replug)."
+	@echo "  it should come up at the shell menu with no PC attached."
+	@echo "================================================================"
