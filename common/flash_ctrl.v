@@ -17,10 +17,10 @@ module flash_ctrl(
     output reg  recfg_n = 1'b1  // reboot pin! => boot from address 0x0
 );
 
-    parameter COPY_LEN = 24'd4096;
+    parameter COPY_LEN = 24'd4096; // currently overridden to 950KB, 950000
 
-    localparam PAGES  = (COPY_LEN + 255) / 256;
-    localparam BLOCKS = (COPY_LEN + 65535) / 65536;
+    localparam PAGES  = (COPY_LEN + 255) / 256; // 256 bytes per page
+    localparam BLOCKS = (COPY_LEN + 65535) / 65536; 
     localparam TOTAL  = PAGES * 256;
 
     reg start_spi;
