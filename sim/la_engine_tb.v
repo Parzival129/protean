@@ -11,17 +11,17 @@
 //   wave: gtkwave build/la_engine_tb.vcd
 `timescale 1ns/1ps
 module la_engine_tb;
-    localparam DEPTH = 8, AW = 3, DIV = 8;
+    localparam DEPTH = 8, AW = 3, POST = 4, DIV = 8;
 
     reg              clk = 0, go = 0;
     reg  [7:0]       probes = 0;
-    reg  [2:0]       sel  = 3'd3;    // trigger on channel 3
+    reg  [2:0]       sel  = 3'd7;    // trigger on channel 7 (slow edge: plenty of pre-trigger samples)
     reg  [1:0]       mode = 2'b00;   // rising
     reg  [AW-1:0]    raddr = 0;
     wire             capturing, full;
     wire [7:0]       rdata;
 
-    la_engine #(.DEPTH(DEPTH), .AW(AW), .DIV(DIV)) dut (
+    la_engine #(.DEPTH(DEPTH), .AW(AW), .POST(POST), .DIV(DIV)) dut (
         .clk(clk), .probes(probes), .go(go), .sel(sel), .mode(mode),
         .capturing(capturing), .full(full), .raddr(raddr), .rdata(rdata)
     );
@@ -38,7 +38,7 @@ module la_engine_tb;
         $dumpfile("build/la_engine_tb.vcd");
         $dumpvars(0, la_engine_tb);
 
-        repeat (5) @(posedge clk);
+        repeat (DEPTH*DIV*2 + 16) @(posedge clk);   // arm just after ch7 rises, so a full ring of pre-trigger samples precedes the next edge
 
         @(posedge clk); #1 go = 1;      // arm the trigger
         @(posedge clk); #1 go = 0;

@@ -114,7 +114,7 @@ soc: firmware               ## build firmware + picorv32 SoC, load to SRAM
 LA := personas/logic_analyzer
 
 sim-%: | $(BUILD)             ## simulate: make sim-sampler / sim-capture / sim-trigger / sim-la_engine
-	iverilog -g2012 -o $(BUILD)/$*_tb.vvp sim/$*_tb.v $(wildcard $(LA)/*.v) common/spi.v common/flash_ctrl.v
+	iverilog -g2012 -o $(BUILD)/$*_tb.vvp sim/$*_tb.v $(wildcard $(LA)/*.v) common/spi.v common/flash_ctrl.v common/axil_reg.v
 	vvp $(BUILD)/$*_tb.vvp
 
 la: | $(BUILD)                ## build Logic Analyzer persona (la_top) + load to SRAM
