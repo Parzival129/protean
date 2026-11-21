@@ -96,7 +96,23 @@ make stage-gb    # flash the Game Boy into its slot
 make detect      # openFPGALoader --detect
 ```
 
-`make soc` / `la` / `gb` load to volatile SRAM for iterating; the `stage-*` targets write to flash so the shell menu can launch them. The Game Boy needs a ROM (see `personas/gameboy/roms/README.md`).
+`make soc` / `la` / `gb` load to volatile SRAM for iterating; the `stage-*` targets write to flash so the shell menu can launch them. The Game Boy needs a cartridge ROM and the DMG boot ROM, neither of which is distributed here (see `personas/gameboy/roms/README.md`).
+
+## Results
+
+Synthesized with yosys and placed/routed with nextpnr-himbaechel on the GW2AR-18C (20,736 LUT4). Timing is the routed Fmax reported by nextpnr; the design clock runs at 27 MHz.
+
+| Persona          | LUT4          | Flip-flops  | BSRAM      | Routed Fmax |
+|------------------|---------------|-------------|------------|-------------|
+| Shell (picorv32) | 4,543 (21%)   | 1,331 (8%)  | 8 / 46     | 131.8 MHz   |
+| Logic analyzer   | 3,724 (17%)   | 1,042 (6%)  | 0 / 46     | 194.1 MHz   |
+
+Switching personas takes about 8 s end to end.
+
+## Verification scope
+
+- Self-checking `iverilog` testbenches (`sim/`): sampler, trigger, capture, LA engine, I²C master, I²C decoder, wave renderer, AXI4-Lite register, Game Boy bring-up/video.
+- Constrained-random UVM (`verif/i2c/`): I²C master only. The flash controller and the rest of the SoC are covered by directed tests and hardware bring-up, not randomized verification.
 
 ## Layout
 
@@ -126,3 +142,7 @@ protean/
 - [picorv32](https://github.com/YosysHQ/picorv32) — the shell's RISC-V core
 - [yosys](https://github.com/YosysHQ/yosys), [nextpnr](https://github.com/YosysHQ/nextpnr), [apicula](https://github.com/YosysHQ/apicula) — the open Gowin toolchain
 - M5Stack CardKB — the keyboard
+
+## License
+
+MIT for the original code (see `LICENSE`). Vendored cores keep their own licenses: picorv32 (ISC) and VerilogBoy (see `personas/gameboy/core/LICENSE`).

@@ -44,3 +44,7 @@ venv/
 
 # demo videos: local only (MP4s are heavy; GIFs are tracked for the README)
 media/*.mp4
+
+# Nintendo DMG boot ROM — copyrighted, supply your own (see personas/gameboy/roms/README.md)
+dmg_boot.bin
+personas/gameboy/roms/bootrom.mif
